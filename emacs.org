@@ -1,0 +1,237 @@
+#+title: mastering emacs
+#+author:  JIE MAN
+
+
+* First Steps
+** on startup
+
+--help    Display the help
+-nw        Forces Emacs to run in terminal mode
+-q           Do not load an init file (such as init.el)
+-Q          Does not load the site-wide startup file , your init file, nor X resources
+
+** Emacs’s client- server mode
+
+~M-x server-start~
+
+~emacs --daemon~
+
+Emacs 26 and up can configure a systemd unit file automatically by running the command ~systemctl --user enable emacs~. 
+
+~emacsclient~
+    --help     Displays the help.
+    -c            Creates a graphical frame (if X is available) or a terminal frame if X is unavailable.
+    -nw         Creates a terminal frame.
+    -n            The client will return immediately instead of waiting for you to save your changes.
+
+    =C-x #=
+    这会告诉 Emacs，你已经完成了当前文件的编辑
+    如果你打开了多个文件，按下 C-x # 后，会切换到下一个文件。
+    如果所有文件都已编辑完成，Emacs 会通知 emacsclient，它会退出并将控制权返回给终端。
+    这种行为在使用需要 $EDITOR 的工具时非常有用，例如 Git。
+
+Set your =$EDITOR= environment variable to emacsclient and things should just work from then on.
+
+** keys
+
+using Emacs in the Terminal, you can still access the menu bar by pressing =F10=
+
+| keys                             | description                                   |
+|----------------------------------+-----------------------------------------------|
+| C-d                              | delete-char                                   |
+| C-M-d                            | delete-char                                   |
+| C-x C-f                          | find-file                                     |
+| C-x 8 P                          | insert the paragraph symbol  ¶                |
+| C-M-%                            | M-x query-replace-regexp                      |
+| C-g                              | cancel command                                |
+| M-x                              | Execute Extended Command                      |
+| When you press a key             | command called self-insert-command            |
+| Universal Arguments C-u          | Represents 4 / execute command n times        |
+| C-0 C-9 / M-0 M-9 / C-M-0  C-M-9 | C-u 0 C-u 9                                   |
+| append C-h to any prefix key     | list all bindings that belong to that key map |
+
+=Caps Lock as Control=
+
+rebinding your caps lock key to control
+
+** Configuring Emacs
+*** Customize Interface
+    - Use the Customize interface
+    ~M-x customize~
+    ~M-x list-colors-display~
+    ~M-x info-apropos~
+
+    - Writeelisp
+  
+*** Evaluating Elisp Code
+
+~M-x eval-buffer~
+~M-x eval-region~
+  
+*** The Package Manager
+
+#+begin_src emacs-lisp
+
+  (setq package-archives
+   '(("gnu" . "http://elpa.gnu.org/packages/")
+    ("melpa" . "http://melpa.org/packages/")))
+
+#+end_src
+
+
+~M-x package-list-packages~
+
+~M-x package-install~
+
+~M-x package-refresh-contents~
+
+*** Color Themes
+
+~M-x customize-themes~
+
+** Getting Help
+*** The Info Manual
+
+    written in TeXinfo
+
+    ~M-x info~ or =C-h i=
+
+    | Key     | Purpose                                   |
+    |---------+-------------------------------------------|
+    | [ and ] | Previous / next node                      |
+    | l and r | Go back / forward in history              |
+    | n and p | Previous / next sibling node              |
+    | u       | Goes up one level to a parent node        |
+    | SPC     | Scroll one screen at a time               |
+    | TAB     | Cycles through cross-references and links |
+    | RET     | Opens the active link                     |
+    | m       | Prompts for a menu item name and opens it |
+    | q       | Closes the info browser                   |
+
+
+*** Apropos
+
+Emacs 的 apropos 系统 是一个非常强大的工具，可以帮助你快速查找和了解 Emacs 内部的函数、变量、命令等信息。它类似于命令行中的apropos，但功能更加细致和强大，支持按特定类别搜索，并且完全支持正则表达式匹配。
+
+=C-h a= or ~M-x apropos command~
+
+| Command     | Key      | Purpose                                            |
+|-------------+----------+----------------------------------------------------|
+| ispell-word | M-$      | Check spelling of word under or before the cursor. |
+| kill-word   | M-d      |                                                    |
+| left-word   | C-<left> | Move point N words to the left                     |
+| mark-word   | M-@      | Set mark ArG words away from point.                |
+
+Apropos can sort results by relevancy. To enable this, add:
+
+#+begin_src emacs-lisp
+
+  (setq apropos-sort-by-scores t)
+
+#+end_src
+
+| Command                            |
+|------------------------------------|
+| M-x apropos                        |
+| M-x apropos-command or C-h a       |
+| M-x apropos-documentation or C-h d |
+| M-x apropos-library                |
+| M-x apropos-user-option            |
+| M-x apropos-value                  |
+
+*** The Describe System
+
+| Command               | key   |
+|-----------------------+-------|
+| M-x describe-mode     | C-h m |
+| M-x describe-function | C-h f |
+| M-x describe-variable | C-h v |
+| M-x describe-key      | C-h k |
+
+* Movement
+
+=Caps Lock as Control=
+
+** Basic
+
+=F10 to activate and navigate the menu bar with the keyboard=
+~M-x menu-bar-mode~
+
+| Key Binding | Purpose                    |
+|-------------+----------------------------|
+| C-x C-f     | Find (open) a file         |
+| C-x C-s     | Save the buffer            |
+| C-x b       | Switch buffer              |
+| C-x k       | Kill (close) a buffer      |
+| C-x C-b     | Display all open buffers   |
+| C-x C-c     | Exits Emacs                |
+| ESC ESC ESC | Exits out of ...           |
+| C-/         | Undo changes               |
+| F10         | Activates the menu bar     |
+| C-x C-w     | Writing a buffer to a file |
+| C-x s       | Saving all files           |
+
+Shebang（程序加载指令）： 如果文件开头是以 #! 开头（例如 #!/usr/bin/env python 或 #!/bin/bash），Emacs 会根据该加载指令来自动识别文件的模式。
+
+魔法模式检测（Magic Mode Detection）： Emacs 还使用 magic-mode-alist 来匹配文件的开头部分。
+
+自动模式检测（Automatic Mode Detection）： Emacs 使用 auto-mode-alist 变量来匹配文件的扩展名、文件名或文件路径中的部分内容，从而自动选择适当的编辑模式。
+
+*** C-x C-c:ExitsEmacs
+
+| Key Binding | Purpose                                                     |
+|-------------+-------------------------------------------------------------|
+| Yoryes      | Saves the file                                              |
+| NorDEL      | Skips current buffer                                        |
+| qorRET      | Aborts the save, continues with exit                        |
+| C-g         | Aborts save and the exit                                    |
+| \!          | Save all remaining buffers                                  |
+| d           | Diff the file on the file system with the one in the buffer |
+
+*** Buffer Switching Alternatives
+
+I recommend =IDO= if you are using Emacsen earlier than version 27, and =FIDO= (a drop-in replacement) for versions 27 or later.
+
+~M-x ido-mode~
+
+~M-x customize-option RET ido-mode RET~
+
+improve IDO’s fuzzy matching by enabling flex matching
+
+~M-x customize-option RET ido-enable-flex-matching RET~
+
+~M-x fido-mode~
+
+There are some completion options related to this mode, but they are under the umbrella group icomplete, the parent completion mechanism FIDO is built in.
+
+~M-x customize-group icomplete~
+
+Additional Completion Frameworks
+
+Some of the more common ones in addition to FIDO and IDO include: =Helm, ivy, Selectrum, Ici- cles, Icomplete=.
+
+*** C-/: Undo
+
+=C-/,C-_,C-x u,Edit -> Undo=
+
+Unlike other editors, Emacs does not have a dedicated redo command, and that has to do with Emacs’s unique undo system known as the =undo ring=.
+
+撤销环（Undo Ring）的工作原理
+
+撤销记录： 每次你在 Emacs 中进行编辑时，编辑历史会被记录在撤销环中，每个撤销记录通常表示为一行文本。撤销环的结构是 环形的，意味着你可以在历史记录之间来回撤销。
+
+撤销头（Head）： 撤销环有一个“头”（head），通常通过 * 标记，它指向 当前缓冲区 最后一次编辑的状态。每当你执行撤销操作时，头指针会移动，指向上一个历史记录，但文本内容不会被删除，只是撤销头的位置发生了变化。
+
+- 撤销环的头指向最新的编辑记录，每次撤销都会将头指向前一个记录，而不是真正删除历史记录。
+- 撤销记录是环形的，意味着你可以在历史记录中来回切换。
+- 即使撤销了某些内容，这些内容仍然保存在撤销环中，直到你执行足够多的撤销步骤使环为空。
+
+** Window Management
+
+| Key Binding | Purpose                   |
+|-------------+---------------------------|
+| C-x 0       | Deletes the active window |
+| C-x 1       | Deletes other windows     |
+| C-x 2       | Split window below        |
+| C-x 3       | Split window right        |
+| C-x o       | Switch active window      |
