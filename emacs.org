@@ -235,3 +235,137 @@ Unlike other editors, Emacs does not have a dedicated redo command, and that has
 | C-x 2       | Split window below        |
 | C-x 3       | Split window right        |
 | C-x o       | Switch active window      |
+
+Undoing window changes
+
+The mode, ~M-x winner-mode~, remembers your window settings and lets you undo and redo with =C-c <left>= and =C-c <right>= , respectively.
+
+Winner 模式是 Emacs 中一个非常有用的功能，它允许你撤销和重做窗口配置的更改。尤其当你在多个窗口间切换和重排时，Winner 模式可以让你方便地恢复到之前的窗口布局。
+
+~M-x customize-option RET winner-mode RET~
+
+Finally,tomovebetweenwindowsusethecommandC-x o. I find it useful to rebind it to M-o as it’s such a common thing to do.
+
+#+begin_src emacs-lisp
+(global-set-key (kbd "M-o") 'other-window)
+#+end_src
+
+Directional window selection
+
+=windmove package=
+
+#+begin_src emacs-lisp
+(windmove-default-keybindings)
+#+end_src
+
+You can now switch windows with your shift key by pressing =S-<left>, S-<right>, S-<up>, S-<down>=.
+
+*** Working with Other Windows
+
+| Key Binding | Purpose                                                        |
+|-------------+----------------------------------------------------------------|
+| C-x 4 C-f   | Finds a file in the other window                               |
+| C-x 4 d     | OpensM-x diredintheotherwindow                                 |
+| C-x 4 C-o   | Displays a buffer in the other window                          |
+| C-x 4 b     | Switches the buffer in the other window and active that window |
+| C-x 4 0     | Kills the buffer and window                                    |
+| C-x 4 p     | Run project command in the other window                        |
+| C-x 4 C-h   | list commands with prefix C-x 4                                |
+
+If you look closely at the key bindings in the table above, you will see a symmetry between C-x 4 and C-x — indeed, they are almost identical in binding and purpose.
+
+** Frame Management
+
+| Key Binding | Purpose                                |
+|-------------+----------------------------------------|
+| C-x 5 2     | Create a new frame                     |
+| C-x 5 b     | Switch buffer in other frame           |
+| C-x 5 0     | Delete active frame                    |
+| C-x 5 1     | Delete other frames                    |
+| C-x 5 C-f   | Finds a file in the other frame        |
+| C-x 5 p     | Run project command in the other frame |
+| C-x 5 d     | OpensM-x diredintheotherframe          |
+| C-x 5 C-o   | Displays a buffer in the other frame   |
+
+** Tab Bars and Tab Lines
+
+If you’re not using Emacs 27, you can find third-party imple- mentations in the package manager
+
+If you’re using a theme that predates Emacs 27, you may find the color scheme of your theme does not extend to the new faces that govern the =tab bar and tab line modes=. You can customize them by typing ~M-x customize-apropos-faces tab-~.
+
+*** Tab Bar Mode
+
+~M-x customize-option RET tab-bar-mode~
+
+~M-x tab-bar-mode~
+
+The prefix key for tab bar mode is =C-x t=.
+
+| Key Binding        | Purpose                            |
+|--------------------+------------------------------------|
+| C-x t 2            | Create a new tab                   |
+| C-x t 0            | Close the current tab              |
+| C-x t RET          | Select tab by name                 |
+| C-x t o,C-<tab>    | Next Tab                           |
+| C-S-<tab>          | Previous Tab                       |
+| C-x t r            | Rename Tab                         |
+| C-x t m            | Move tab one position to the right |
+| C-x t p            | Run project command in other tab   |
+| C-x t t            | Execute command in other tab       |
+| C-x t 1            | Close all other tabs               |
+| C-x t C-f, C-x t f | Find file in other tab             |
+| C-x t b            | Switch to buffer in other tab      |
+| C-x t d            | Open Dired in other tab            |
+
+Like the frame, window, and buffer management key bind- ings, the tab bar bindings follow the same pattern: actions that affect other tabs is akin to creating a new tab.
+
+If you dislike seeing the tab bar itself, you can hide it with ~M-x customize-option RET tab-bar-show~, and still benefit from all the capabilities of the tab bar.
+
+| Command        | Purpose                                 |
+|----------------+-----------------------------------------|
+| M-x tab-list   | Shows an interactive tablist            |
+| M-x tab-undo   | Undoes a closed tab for each invocation |
+| M-x tab-recent | Switch to the last visited tab          |
+
+ Earlier in Window Management I talked about =winner-mode=, a way of undoing and redoing recent window configurations. It’s not nearly as useful with tab bars as it does not understand tab-specific win- dow configurations.
+ 
+recommend you enable ~M-x tab-bar-history-mode~ with ~M-x customize-option RET tab-bar-history-mode~.
+
+#+begin_src emacs-lisp
+
+  (global-set-key (kbd "M-[") 'tab-bar-history-back)
+  (global-set-key (kbd "M-]") 'tab-bar-history-forward)
+
+#+end_src
+
+
+*** Tab Line Mode
+
+~M-x customize-option RET global-tab-line-mode~;or ~M-x global-tab-line-mode~.
+
+| Key Binding | Purpose                |
+|-------------+------------------------|
+| C-x <left>  | Select previous buffer |
+| C-x <right> | Select next buffer     |
+
+
+you can customize that with ~M-x customize-option tab-line-tabs-function~ and, say, limit it to buffers of the same major mode. 
+
+** Elemental Movement
+*** Navigation Keys
+
+| Key Binding   | Purpose                                             |
+|---------------+-----------------------------------------------------|
+| <left>, ...   | Arrow keys move by character in all four directions |
+| C-<left>, ... | As above, but by word                               |
+| <insert>      | Insert key. Activates overwrite-mode                |
+| <delete>      | Delete key. Deletes the character after point       |
+| <prior>,      | Page up and Page down move up and down              |
+| <next>        | nearly one full page                                |
+| <home>, <end> | Moves to the beginning or end of line               |
+
+The page up/down buttons will scroll up or down a screenful of text, retaining 2 lines of text for context.
+
+You can change the amount of overlap when you page through text by altering the variable =next-screen-context-lines= directly in your init file or by using Emacs’s customize interface, like so: ~M-x customize-option~, then enter =next-screen-context-lines=.
+
+*** Moving by Character
