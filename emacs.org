@@ -369,3 +369,127 @@ The page up/down buttons will scroll up or down a screenful of text, retaining 2
 You can change the amount of overlap when you page through text by altering the variable =next-screen-context-lines= directly in your init file or by using Emacs’s customize interface, like so: ~M-x customize-option~, then enter =next-screen-context-lines=.
 
 *** Moving by Character
+** Bookmarks and Registers
+
+*** Bookmarkso
+That makes Emacs’s bookmarking systm flexible enough for you to book mark files,M-x dired directories, M-x man pages, Org mode, DocView (including PDF files), and info manual pages.Because of Emacs’s RrAMP system, it is therefore also possible to bookmark remote files and directories for speedy access.
+
+they are automatically saved to a bookmark file in =~/.emacs.d/= called =bookmarks=.
+
+The variable =bookmark-default-file= determines where Emacs stores your bookmarks.
+
+The file is plain text (elisp s-expressions, actually) meaning it is possible to edit it manually (if you absolutely must) or merge the files if you regularly add or remove bookmarks from multiple machines.
+
+
+| Key Binding | Purpose        |
+|-------------+----------------|
+| C-x r m     | Set a bookmark |
+| C-x r l     | Listbookmarks  |
+| C-x r b     | Jumptobookmark |
+
+
+And best of all, like all things Emacs, the bookmark system is flexible enough that elisp hackers can easily extend it with =custom handlers=.
+
+*** Registers
+
+registers are transient.
+
+A register is a single-character store-and-recall mecha- nism for several types of data, including:
+
+- Window configurations and framesets
+- Points
+- Numbers and text
+
+| Key Binding | Purpose                                |
+|-------------+----------------------------------------|
+| C-x r n     | Store number in register               |
+| C-x r s     | Store region in register               |
+| C-x r SPC   | Store point in register                |
+| C-x r +     | Increment number in register           |
+| C-x r j     | Jump to register                       |
+| C-x r i     | Insert content of register             |
+| C-x r w     | Store window configuration in register |
+| C-x r f     | Store frameset in register             |
+
+A register is a single character only.
+
+When you want to store or recall something, you are asked for a single character to query.
+
+Emacs pops up a preview window after =register-preview-delay= seconds (default 1 second).
+
+There are better packages out there like ~M-x winner-mode~ as I talked about earlier.
+
+To increment it by =prefix-numeric-value (default 1)=, type C-x r + and to increment it by an arbitrary amount,giveit a numeric argument (and a negative one to decrement.) 
+
+
+** Selections and Regions
+
+The region is always defined as the con- tiguous block of text between the point and the mark.
+
+Therefore, when you make visual selections, you are using Emacs’ =Transient Mark Mode=, also known as =TMM=.
+
+The mark in Emacs is not just for the region. It’s an important tool for jumping around in a buffer as some commands that whisk you away from your current location will leave a mark (a breadcrumb trail, effectively) on the =mark ring= that you can return to later.
+
+One example would be M-< and M-> – the commands for jumping to the beginning and end of the buffer – they both mark your old position before they jump so you can later return to your old position by typing =C-u C-<SPC>=.
+
+Like the undo ring, the mark ring contains all the marks you have placed in a buffer — both directly, using mark commands like =C-<SPC>=; and indirectly, from commands like =M-< and M->=. There is also the global mark ring for commands that work across buffer boundaries.
+
+| Key Binding   | Purpose                                                             |
+|---------------+---------------------------------------------------------------------|
+| C-<SPC>       | Sets the mark, and toggles the region                               |
+| C-u C-<SPC>   | Jumps to the mark, and repeated calls go further back the mark ring |
+| S+<left>, ... | Shift selection similar to other editors                            |
+| C-x C-x       | Exchanges the point and mark, and reactivates your last region      |
+
+The =C-x C-x= command (called ~exchange-point-and-mark~)
+
+1. A region is acontiguous block bounded by the point and mark.
+2. You activate a region with C-<SPC>, which sets the mark then activates the region (if you use TMM, and you should!). Pressing C-<SPC> again deactivates the region.
+3. An active region follows the point as you move around but breaks when you use a non-movement command.
+4. The mark serves a dual purpose as a beacon you can return to with C-u C-<SPC>, even one you set with C-<SPC> Repeat calls to C-u C-<SPC> go further and further back the =mark ring=.
+5. Exchanging the point and mark with C-x C-x re-activates the region and switches your point and mark around.
+6. Some Emacs commands don’t care if the region isn’t actually active and work anyway (so be careful).
+
+   you can use the =mouse to click-drag selections= or use the arrow key selection with =S+<arrow key>=.
+
+*** Selection Compatibility Modes
+
+~M-x delete-selection-mode~
+
+~M-x customize-option RET delete-selection-mode~
+
+~shift-select-mode (variable, enabled by default)~
+
+For instance, S-<left>, S-<right>, etc. will region se- lect one character at a time, and C-S-f will do the same but with Emacs’s own movement commands.
+
+~M-x customize-option RET shift-select-mode~
+
+~M-x cua-mode~
+
+cua-mode lets you use C-z, C-x, C-c, and C-v to undo, cut, copy and paste like you would in other programs.
+
+~M-x customize-option RET cua-mode~
+
+*** Setting the Mark
+
+If you want to make precise selections, you are better off using Emacs’s dedicated mark commands:
+
+| Key Binding         | Purpose                     |
+|---------------------+-----------------------------|
+| M-h                 | Marks the next paragraph    |
+| C-x h               | Marks the whole buffer      |
+| C-M-h               | Marks the next defun        |
+| C-x C-p             | Marks the next page         |
+| M-@                 | Marks the next word         |
+| C-M-<SPC> and C-M-@ | Marks the next s-expression |
+| C-<SPC>, C-g        | Deactivates the region      |
+
+All mark commands append to the existing selection if you already have a region active.
+
+So if you want to mark two words in a row, all you have to do is press M-@ twice or com- bine it with a numeric argument: M-2 M-@. Likewise, you can reverse the direction by using the negative argument modifier.
+
+A lot of mark commands are similar, notably the M-x mark-word command M-@.
+
+However, some mark commands are overridden in some major modes so they work correctly for that particular mode. For instance, in reStructuredText, the M-x mark-defun command bound to C-M-h will select a whole chapter; this is sensible, as there are no defuns (a LISP term for a function) in a text file.
+
+I use C-M-<SPC> all the time. Combine it with a negative argu- ment(C-M-- C-M-<SPC>) to reverse the direction and you can mark s-expressions in reverse easily too.
