@@ -108,7 +108,6 @@ rebinding your caps lock key to control
     | m       | Prompts for a menu item name and opens it |
     | q       | Closes the info browser                   |
 
-
 *** Apropos
 
 Emacs 的 apropos 系统 是一个非常强大的工具，可以帮助你快速查找和了解 Emacs 内部的函数、变量、命令等信息。它类似于命令行中的apropos，但功能更加细致和强大，支持按特定类别搜索，并且完全支持正则表达式匹配。
@@ -421,7 +420,6 @@ There are better packages out there like ~M-x winner-mode~ as I talked about ear
 
 To increment it by =prefix-numeric-value (default 1)=, type C-x r + and to increment it by an arbitrary amount,giveit a numeric argument (and a negative one to decrement.) 
 
-
 ** Selections and Regions
 
 The region is always defined as the con- tiguous block of text between the point and the mark.
@@ -493,3 +491,189 @@ A lot of mark commands are similar, notably the M-x mark-word command M-@.
 However, some mark commands are overridden in some major modes so they work correctly for that particular mode. For instance, in reStructuredText, the M-x mark-defun command bound to C-M-h will select a whole chapter; this is sensible, as there are no defuns (a LISP term for a function) in a text file.
 
 I use C-M-<SPC> all the time. Combine it with a negative argu- ment(C-M-- C-M-<SPC>) to reverse the direction and you can mark s-expressions in reverse easily too.
+
+** Searching and Indexing
+
+| Key Binding | Purpose                                     |
+|-------------+---------------------------------------------|
+| C-s         | Begins an incremental search                |
+| C-r         | Begins a backward incremental search        |
+| C-M-s       | Begins a regexp incremental search          |
+| C-M-r       | Begins a regexp backward incremental search |
+| RET         | Pick the selected match                     |
+| C-g         | Exit Isearch                                |
+
+ So, if you want to recall the last search term, you can type =C-s C-s= to first open Isearch and then re-call the last search string.
+
+ If you have more than one match, or if you simply want to walk through all the matches, keep tapping the direction key =(C-s or C-r)= in which you want to search.
+
+ RET picks the selected match This also terminates Isearch but it leaves you at the match you are at and =it drops a mark at your original location so you can return to your former location with C-u C-<SPC>=.
+
+By default, Isearches are not case sensitive; 
+
+However, when you use one or more uppercase letters in your search, Emacs will auto- matically switch to a case-sensitive search. -- case folding
+
+~M-x customize-option case-fold-search RET~
+
+| Isearch Key Binding | Purpose                                                     |
+|---------------------+-------------------------------------------------------------|
+| M-n                 | Move to next item in search history                         |
+| M-p                 | Move to previous item in search history                     |
+| C-M-i               | “TAB”-complete search string against previous search ring |
+| C-s C-s             | Begins Isearch against last search string                   |
+| C-r C-r             | Begins backward Isearch against last search string          |
+
+*** “TAB”-completion in Ema
+
+C-M-i is another “TAB”-completio
+
+when you run Isearch you are essentially interacting with a mode – the command is typically bound to =complete-symbol=
+
+*** Searching for strings at point
+
+| Isearch Key Binding | Purpose                                          |
+|---------------------+--------------------------------------------------|
+| C-w                 | Add word at point to search string               |
+| C-M-y               | Add character at point to search string          |
+| M-s C-e             | Add rest of line at point to search string       |
+| C-y                 | Yank (“paste”) from clipboard to search string |
+
+If you are using an Emacs version older than 24.4,10 then you must replace C-y with M-y and M-s C-e with C-y.
+
+*** control how Isearch behaves using its toggles
+
+| Isearch Key Binding | Purpose                         |
+|---------------------+---------------------------------|
+| M-s c               | Toggles case-sensitivity        |
+| M-s r               | Toggles regular-expression mode |
+| M-s w               | Toggles word mode               |
+| M-s _               | Toggles symbol mode             |
+| M-s <SPC>           | Toggles lax whitespace matching |
+| M-s '               | Toggles character folding       |
+
+You can enable it by default by Customizing ~search-default-mode~.
+
+Some of the toggles and commands I have covered are so frequent that they have their own global keybindings:
+
+| Isearch Key Binding | Purpose                             |
+|---------------------+-------------------------------------|
+| M-s w               | Isearch forward for word            |
+| M-s _               | Isearch forward for symbol          |
+| M-s .               | Isearch forward for symbol at point |
+
+*** search tool
+**** Occur: Print and Edit lines matching an expression
+~M-x occur~
+
+| Key Binding | Purpose                                                |
+|-------------+--------------------------------------------------------|
+| M-s o       | Occur mode                                             |
+| M-s o       | Activate occur on current search string inside Isearch |
+
+Unlike Isearch, you're asked for a regular expression for which to search
+
+Occasionally, you may want context lines – lines before and after the matching line itself – and you can enable them by customizing the variable =list-matching-lines-default-context-lines=.
+
+The occur mode used in the *Occur* buffer has a number of useful keys you can use:
+
+| Occur Key Binding | Purpose                                           |
+|-------------------+---------------------------------------------------|
+| M-n, M-p          | Go to next and previous occurrence                |
+| <,>               | Go to beginning and end of buffer                 |
+| g                 | Revert the buffer, refreshing tha search resultse |
+| q                 | Quits occur mode                                  |
+| e                 | Switches to occur edit mode                       |
+| C-c C-c           | Exits occur edit mode and applies changes         |
+
+To maintain your tempo, I suggest you learn these two commands:
+
+| Key Binding | Purpose                 |
+|-------------+-------------------------|
+| M-g M-n     | Jumptonext“error”     |
+| M-g M-p     | Jumptoprevious“error” |
+
+
+~M-x next-error~ and ~M-x previous-error~
+
+they are general-purpose commands. When you run ~M-x occur~ (or other specialized commands in Emacs like ~M-x compile~ or ~M-x grep~), Emacs remembers that and makes =M-g M-n and M-g M-p= go up and down that list of matches.
+
+**** Multi-Occur
+
+~M-x multi-occur-in-matching-buffers~
+
+~M-x multi-occur~
+
+**** Imenu: Jump to definitions
+
+~M-x imenu~
+
+I bind imenu to ~M-i~.
+
+That key is already in use, however. The existingcommand, ~M-x tab-to-tab-stop,willinsertspaces~ or tabs to get to the next tab stop, a concept that dates back to – and hasn’t been used since – the era of the typewriter.
+
+(global-set-key (kbd "M-i") 'imenu)
+
+**** Helm:Incremental Completion and Selection
+
+#+begin_src emacs-lisp
+
+  (setq package-archives
+   '(("gnu" . "http://elpa.gnu.org/packages/")
+    ("melpa" . "http://melpa.org/packages/")))
+
+#+end_src
+
+~M-x package-install~
+
+All Helm commands share the prefix key =C-x c=
+
+| Prefix Key Binding | Purpose                                 |
+|--------------------+-----------------------------------------|
+| C-x c              | PrefixkeyforallHelmcompletion commands. |
+
+
+Use apropos
+
+apropos will list all elisp symbols – variables, commands, elisp func- tions, and so on – that match the pattern you give it.
+
+~M-x apropos-command~ (using C-h a)
+
+~M-x apropos-variable~
+
+~M-x helm-apropos~
+
+Describetheprefixkey
+
+InTheDescribeSystem,you can tell Emacs to list all key bindings in a prefix key by finishing a prefix key with C-h: =C-x c C-h=.
+
+Helm Bindings
+
+| Helm Key Binding | Purpose                             |
+|------------------+-------------------------------------|
+| RET              | Primary action                      |
+| C-e              | Secondary action                    |
+| C-j              | Tertiary action                     |
+| TAB              | Switch to action selector           |
+| C-n, C-p         | Next and previous candidate         |
+| M-<, M->         | eginning and end of completion list |
+
+
+Exiting Helm
+
+=C-g=
+
+Here are some of the more useful Helm completion engines:
+
+| Key Binding | Purpose                                                        |
+|-------------+----------------------------------------------------------------|
+| C-x c b     | Resumes last Helm command                                      |
+| C-x c /     | Invokes the command line utility find on the current directory |
+| C-x c a     | Completes M-x apropos results                                  |
+| C-x c m     | Completion engine for the man page program                     |
+| C-x c i     | Lists completions sourced from M-x imenuorSemantic             |
+| C-x c r     | Interactive regular expression builder                         |
+| C-x c h r   | Search Emacs topics in M-x info                                |
+| C-x c M-x   | List completions sourced from M-x                              |
+| C-x c M-s o | Use Helm to match M-x occurpatterns                            |
+| C-x c C-c g | Show matches from Google Suggest                               |
+
