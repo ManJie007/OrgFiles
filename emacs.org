@@ -369,3 +369,58 @@ The page up/down buttons will scroll up or down a screenful of text, retaining 2
 You can change the amount of overlap when you page through text by altering the variable =next-screen-context-lines= directly in your init file or by using Emacs’s customize interface, like so: ~M-x customize-option~, then enter =next-screen-context-lines=.
 
 *** Moving by Character
+
+| Key Binding | Purpose                    |
+|-------------+----------------------------|
+| C-f         | Move forward by character  |
+| C-b         | Move backward by character |
+| C-p         | Move to previous line      |
+| C-n         | Move to next line          |
+
+You can apply =universal arguments= to the character keys and they will work as you expect. 
+=C-8 C-f=
+
+*** Moving by Line
+
+| Key Binding | Purpose                                                        |
+|-------------+----------------------------------------------------------------|
+| C-a         | Moves point to the beginning of the line                       |
+| C-e         | Moves point to the end of the line                             |
+| M-m         | Moves point to the first non-whitespace character on this line |
+
+Screen, Logical and Visual Lines
+
+The end result is to- day, in the latest versions of Emacs, the previous/next line commands =move by visual lines=.
+
+You can switch to the old behavior by typing ~M-x customize-option RET line-move-visual~.
+
+Furthermore, commands like moving to the beginning and end of a line (with C-a and C-e) now =work on visual lines instead of logical lines=.
+
+The kill command (bound to C-k, but we haven’t covered that command yet!) will also =work on visual lines=.
+
+you can enable it globally with ~M-x customize-option RET global-visual-line-mode~ or in a buffer at a time by typing ~M-x visual-line-mode~.
+
+**** word wrapping
+
+~M-x toggle-truncate-lines~
+
+**** Displaying Line and Column Numbers
+
+~M-x display-line-numbers-mode~
+
+permanently with ~M-x customize-option RET global-display-line-numbers-mode~ or ~M-x customize-option RET display-line-numbers-mode~.
+
+~M-x customize-group RET display-line-numbers~
+
+~M-x line-number-mode~
+~M-x column-number-mode~
+It displays the current line your point is on in the mode line.
+
+*** Moving by Word
+
+| Key Binding | Purpose               |
+|-------------+-----------------------|
+| M-f         | Move forward by word  |
+| M-b         | Move backward by word |
+
+If you’ve used other editors, the equivalent arrow keys are =C-<left> and C-<right>=, and as I mentioned earlier they are also available to you in Emacs.
