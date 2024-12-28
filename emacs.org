@@ -1005,3 +1005,122 @@ Emacs 27 gained the command ~M-x doc-view-presentation~ that turns a Doc View bu
 
 You can navigate between “slides” with =n and p, and q to quit=.
 
+
+** TRAMP: Remote File Editing
+
+Emacs’s RrAM system is a transparent proxy that aims to solve most of the remote file interaction woes you are likely to encounter.
+
+All TrAMP connections follow this syntax:
+
+~/protocol:[user@]hostname[#port]:~
+
+TrAMP supports many protocols – both old and new – but nowadays the one you are most likely to use is =ssh= or maybe =scp=.
+
+For a full list of TrAMP protocols and how they work, consult the variable =tramp-methods= or the info manual page (tramp) Internal methods.
+
+Microsoft Windows
+
+On Windows, your protocol choices differ. If you don’t use Cygwin or a cross-compiled version of OpenSSH, you will need to install =PuTTY’s plnk.exe= tool and use plink as the protocol.
+
+Another nifty feature of TrAMP is that it parses your =~/.ssh/config= file and =autocompletes known hosts= when you have entered ssh as your protocol.
+
+~M-x man RET ssh_config~
+
+Finally, =to actually invoke TRAMP you must call it from the root – typing // in FIDO or IDO mode will jump to the root – and follow the format as above=.
+
+If you also use Helm, you can install a third- party package called =helm-tramp= that auto generates all reasonable TRAMP configurations you may want to use.
+
+You can also find =TRAMP extensions that add support for tools like Docker.=
+
+that Emacs will not initiate a remote connection until you enter the second :
+
+/ssh:homer@powerplant:/var/log/reactor.log
+
+TrAMP comes with a default method (protocol) described in =tramp-default-method= that removes the need to specify the protocol TrAMP should use by default.
+
+However, as of Emacs 26, you must indicate to Emacs that you want the default method by typing =/-:=.
+
+*** The Default Directory and Remote Editing
+
+Every buffer has a =default-directory= variable.
+
+Each buffer has its own =default-directory= variable as it is local to just that buffer and not global (like variables are by default in Emacs).
+
+When you type =C-x C-f= in a buffer, Emacs looks to =default-directory= and picks that directory as the default one for opening new files.
+
+This feature works identically with TrAMP and remote files.
+
+The only visible way of telling that a file is remote is the modeline: =a @ appears be- fore the file name and default-directory reflects the TrAMP- annotatedfilepath;=
+
+Here are some of the commands that I use remotely:
+
+- C-x d: Dired
+- M-x compile: Compile
+- M-x rgrep: Grep Commands
+- M-x shell: Emacs’s Shell Wrapper
+- M-x eshell: EShell, Emacs’s elisp shell
+  
+*** Multi-Hops and User Switching
+
+Another useful ability of TrAMP is account elevation with su or sudo.
+
+An example is if you have to access an internal server but first have to connect through a public server for added security; another is if you have to log in as one user but then have to call out to sudo to edit a file as root on a remote server.
+
+/sudo:root@localhost:/etc/fstab
+
+As you can see, the syntax is identical to a normal remote TrAMP connection — only we’re using sudo and we are con- necting locally
+
+Multi-hopping in TrAMP is usually done by customizing =tramp-default-proxies-alist= but I find it a bit fiddly; the ad hoc syntax is much easier:
+
+/ssh:homer@powerplant|sudo:powerplant:/root/salary.txt
+
+The example above connects to powerplant as homer. Then, another ‘connection’ invokes sudo and opens /root/salary.txt as a sudo’d user.
+
+=You can bookmark (see Bookmarks and Regis- ters) remote files with C-x r m and TrAMP will automatically reconnect if you re-open a book- marklaterwithC-x r borC-x r l.=
+
+It is a custom command that,when invoked as M-x sudo,uses TrAMP to edit the current file as root:
+
+#+begin_src emacs-lisp
+
+  (defun sudo ()
+    "Use TRAMP to `sudo' the current buffer"
+    (interactive)
+    (when buffer-file-name
+      (find-alternate-file
+       (concat "/sudo:root@localhost:"
+               buffer-file-name))))
+
+#+end_src
+
+** EWW: Emacs Web Wowser
+
+ Emacs has a built-in web browser, EWW — the Emacs Web Wowser.
+
+ ~M-x eww~
+
+you can Customize =eww-search-prefix= and change it to something else.
+
+Starting with Emacs 27, typing =C-u M-x eww= will create a new EWW buffer even if one already exists.
+
+You can instruct Emacs to open things in a web browser with the command ~M-x browse-url~.
+
+Emacs will use the variable =browse-url-default-browser=
+
+| Keys       | Description                             |
+|------------+-----------------------------------------|
+| TAB, S-TAB | Cycle to next/prev hyperlink            |
+| q          | Quit EWW                                |
+| &          | Open page in with M-x browser-url       |
+| B          | Show bookmarks                          |
+| b          | Add bookmark                            |
+| H          | Show browser history                    |
+| l,r        | Browse backward / forward in history    |
+| p,n,u,t    | Semantic web navigation aids            |
+| R          | Enable Reader mode                      |
+| RET        | Browse link                             |
+| C-u RET    | Open link in external browser           |
+| M-s M-w    | Searches for point in EWW               |
+| M-RET      | Open link in new buffer (Emacs 26)      |
+| s          | Switch to another EWW buffer (Emacs 26) |
+| w          | Copy link at point (Emacs 26)           |
+
