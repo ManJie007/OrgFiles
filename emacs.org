@@ -733,3 +733,275 @@ Here are some of the more useful Helm completion engines:
 | C-x c M-s o | Use Helm to match M-x occurpatterns                            |
 | C-x c C-c g | Show matches from Google Suggest                               |
 
+**** IDO: Interactively DO Things
+
+As I talked about in Buffer Switching Alternatives, IDO mode is a powerful minibuffer completion engine.
+
+I recommend you enable IDO mode for file and directory find- ing, and buffer switching by adding the following lines to your init file:
+
+#+begin_src emacs-lisp
+
+  (ido-mode 1)
+  (setq ido-everywhere t)
+  (setq ido-enable-flex-matching t)
+
+#+end_src
+
+File & Directory Switching
+
+| Key Binding | Purpose                                    |
+|-------------+--------------------------------------------|
+| C-s and C-r | Move to the next and previous match        |
+| TAB         | Traditional non-IDO TAB-completion         |
+| RET         | Open selected match                        |
+| C-d         | Open M-x dired buffer in current directory |
+| //          | Go to root directory /                     |
+| ~/          | Go to home directory ~                     |
+| Backspace   | Delete a character or go up one directory  |
+
+Buffer Switching
+
+
+| Key Binding | Purpose                                |
+|-------------+----------------------------------------|
+| C-s and C-r | Move to the next and previous match    |
+| TAB         | Traditional non-IDO TAB-completion     |
+| RET         | Switch active buffer to selected match |
+
+**** Grep: Searching the file system
+
+grep in Microsoft Windows
+
+There is no like-for-like grep program in Win- dows – and the built-in one findstr, though powerful, is not supported out of the box by Emacs – so I recommend you install the cross-compiled Windows versions of the GNU Coreutils.
+
+ack, ag and ripgrep
+
+You can find third-party packages in the package manager that supports them.
+
+| Command       | Purpose                                                    |
+|---------------+------------------------------------------------------------|
+| M-x grep      | Prompts for arguments to pass to grep                      |
+| M-x grep-find | Prompts for arguments to pass to grep and find             |
+| M-x lgrep     | Prompts for query and glob pattern to search for with grep |
+| M-x rgrep     | recursively searches with grep and find                    |
+| M-x rzgrep    | LikeM-x rgrepbutsearches compressed gzip files             |
+
+Low-level commands
+
+~M-x grep and M-x grep-find~
+
+High-level commands
+
+~M-x lgrep, M-x rgrep and M-x rzgrep~
+
+~M-x customize-group RET grep RET~
+
+Using the Grep Interface
+
+| Key Binding | Purpose             |
+|-------------+---------------------|
+| M-g M-n     | Jumptonextmatch     |
+| M-g M-p     | Jumptopreviousmatch |
+
+Grepping in Emacs
+
+Like everything in Emacs, it comes down to modes and the major mode for grep is named – you guessed it – grep-mode.
+
+What Emacs actually does boils down to is piping the output from grep to a buffer named *grep* followed by a call to grep-mode.
+
+You can test this by opening a blank buffer (C-x b and then pick a name not in use) and enter something like this:
+
+my_file.txt:10:This does not exist!
+
+and then type M-x grep-mode and watch as Emacs will highlight the match as though it were real output from grep. 
+
+** Other Movement Commands
+
+| Key Binding | Purpose                                                               |
+|-------------+-----------------------------------------------------------------------|
+| M-r         | Re-positions the point to the top left, middle left, or bottom left   |
+| C-l         | Re-centers the point to the middle, top, or bottom in the buffer      |
+| C-M-l       | Re-positions the comment or definition so it is in view in the buffer |
+| C-x C-n     | Sets the goal column, the horizontal position for the point           |
+| C-u C-x C-n | Resets the goal column, the horizontal position for the point         |
+| M-g M-g     | Go to line                                                            |
+| M-g TAB     | Go to column                                                          |
+| M-g c       | Go to character position                                              |
+
+* The Practicals of Emacs
+** Exploring Emacs
+*** Reading the Manual
+
+-  Open the M-x info manual by typing C-h i.
+- Navigate to the Emacs hyperlink and open it.
+- Search with C-s for version or version control.
+
+Apropos for info manuals
+
+~M-x info-apropos~
+
+Using Apropos
+
+use =C-h d=, which is the apropos command that searches documentation.
+
+*** C-h: Exploring Prefix keys
+
+In Discovering and Remembering Keys, I showed you that appending C-h when you enter a partial (prefix) key lists all the keys bound to that prefix key.
+
+*** C-h k:Describe what a key does
+*** C-h f:Describe what a function does
+*** C-h m:Findingmodecommands
+** Project Management
+
+That changed in Emacs 23 with =EDE=, a subset of =CEDET=, itself a very complex suite of tools to give Emacs IDE-like functionality.
+
+
+Like CEDET, EDE never really caught on, and in the meantime a large number of third-party libraries (like =Projectile=) flour- ished as multi-language projects became more common.
+
+Despite the existence of EDE, Emacs 25 included – but it did not reach maturity until Emacs 27 – a new project management tool with the imaginative name =project.el=.
+
+To do so, all you need is a Git or Hg repository.
+
+There’s a prefix keymap reserved just for projects bound to C-x p:
+
+| Project Keys | Description                     |
+|--------------+---------------------------------|
+| C-x p p      | Switch to other known projects  |
+| C-x p b      | Switch to buffer                |
+| C-x p f      | Find file in project            |
+| C-x p k      | Kill project buffers            |
+| C-x p g      | Search by regexp                |
+| C-x p r      | Query regexp search and replace |
+| C-x p c      | Compile project                 |
+| C-x p v      | Open VC Dialog                  |
+| C-x p s      | Open a Shell                    |
+| C-x p d      | Open a Dired buffer             |
+
+** Xref: Cross-References in Emacs
+
+Though introduced in Emacs 25, Xref is still finding its footing.
+
+| Keys  | Description                        |
+|-------+------------------------------------|
+| M-.   | Find definitions at point          |
+| M-,   | Pop marker and return              |
+| M-?   | Find references matching a pattern |
+| C-M-. | Find symbols matching a pattern    |
+
+If you invoke xref ’s find a definition with M-., you’re more likely asked to find a =TAGS= table file first if your major mode does not have xref configured already. 
+
+They are still use- ful if you work on astronomically large projects;
+
+for most of us, tools that search your file system on the =fly= (or query a =Language Server=) is usually all you need.
+
+To get you started, I recommend you try the third-party package =dumb-jump= which, despite its name, leverages the speed of file searchers like grep, ack, ag or ripgrep to find matches relevant to your major mode.
+
+| Xref Buffer Keys | Description                       |
+|------------------+-----------------------------------|
+| RET              | Jump to definition                |
+| TAB              | Jump to definition, and hide xref |
+| C-o              | Show definition                   |
+| . and ,          | Navigate up or down               |
+| r                | Query search and replace regexp   |
+
+Type r and you’re prompted for a regexp to search and re- place with. It works the same as =C-M-%= that I talked about in Search and Replace.
+
+Xref and Dired
+
+Xref is also available in Dired: you can type =A to search and Q to search & replace in marked files=.
+
+** Working with Log Files
+
+| Keys    | Description                    |
+|---------+--------------------------------|
+| C-x C-f | Finds a file                   |
+| C-x C-r | Finds a file in read only mode |
+| C-x C-q | Toggles read only mode         |
+
+if the file is not writable, Emacs will open it in M-x read-only-mode automatically.
+
+
+| Keys            | Description                      |
+|-----------------+----------------------------------|
+| M-x flush-lines | Flushes lines matching a pattern |
+| M-x keep-lines  | Keepsonlylinesmatchingapattern   |
+| M-s o           | Listlinesmatchingapattern        |
+
+=What a lot of people never consider is that you can re-run M-s o on an Occur mode buffer to filter it further.=
+
+Emacs’s highlighters are especially useful here, as they highlight patterns in your buffer in different colors so you can tell them apart:
+
+| Keys    | Description                          |
+|---------+--------------------------------------|
+| M-s h p | Highlights a phrase                  |
+| M-s h r | Highlights a regular expression      |
+| M-s h . | Highlights symbol at the point       |
+| M-s h p | Removes highlighting under the point |
+
+You can enable a minor mode so Emacs re- freshes a file if it changes on your file system.
+
+| keys                      | Description                       |
+|---------------------------+-----------------------------------|
+| M-x auto-revert-mode      | Reverts buffer when file changes  |
+| M-x auto-revert-tail-mode | Appends changes when file changes |
+
+** Browsing Other Files
+
+~auto compression mode~
+
+Combine it with ~M-x dired~ and you can browse compressed archives as though they were directories.
+
+*** Dired: Thumbnail Image Browser
+
+~M-x image-dired~
+
+| Thumbnail Keys | Description                            |
+|----------------+----------------------------------------|
+| C-f, C-b       | Move to the next or previous thumbnail |
+| C-p, C-n       | Move up or down a row of thumbnails    |
+| d,m,u          | Delete, mark, or unmark (like Dired)   |
+| t t,t u        | Tag or untag image                     |
+| RET            | Open image                             |
+| l,r            | Rotate thumbnail left or right         |
+
+The full-sized image buffer offers three key bindings:
+
+| Image Keys | Description            |
+|------------+------------------------|
+| q          | Quit                   |
+| s          | Resize image to window |
+| f          | Show in full size      |
+
+Note, though, that opening the file from dired puts you in ~Image Mode~, a general-purpose image viewer (and far more powerful), and not ~Dired Image Display Mode~.
+
+*** DocView: Viewing Rich Documents
+
+DocView Support
+
+For a full list of what Emacs will attempt to convert, you can type =C-h v auto-mode-alist= and search for doc-view.
+
+To use DocView, open a PDF or other supported binary file and Emacs will attempt to render it for you. When open, some of the key bindings available to you are:
+
+| Keys            | Description                          |
+|-----------------+--------------------------------------|
+| n,p             | Page up / page down                  |
+| <prior>, <next> | Page up / page down                  |
+| SPC             | Scroll down                          |
+| S-SPC           | Scroll up                            |
+| M-<, M->        | Jump to first / last page            |
+| +,-,0           | Enlarge, shrink or reset             |
+| W,H,P,F         | Fit to width, height, page or window |
+
+
+If the images look pixelated, you can increase the DPI with:
+
+#+begin_src emacs-lisp
+  (setq doc-view-resolution 400)
+#+end_src
+
+Slide Show Viewer
+
+Emacs 27 gained the command ~M-x doc-view-presentation~ that turns a Doc View buffer into a full screen slide show. 
+
+You can navigate between “slides” with =n and p, and q to quit=.
+
