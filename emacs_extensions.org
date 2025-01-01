@@ -1,0 +1,362 @@
+* Customizing Emacs
+
+When Emacs starts, it reads and executes the contents of the .emacs file in your home directory.
+
+** Lisp
+
+the language of the .emacs file.
+
+It is traditionally associated with artificial intelligence applications, for which Lisp is well-suited because it permits symbolic computation, =can treat code as data=, and simplifies building very complicated data structures.
+
+The word expression usually means any piece of Lisp code or any Lisp data structure. All Lisp expressions, whether code or data, can be evaluated by the Lisp interpreter built into Emacs to make them yield some computational result.
+
+
+Among the features that distinguish Lisp from other programming languages are:
+
+*** Fully-parenthesized prefix notation
+
+All expressions and function calls in Lisp are surrounded by parentheses,* and the function
+name always precedes the arguments to the function.
+
+#+begin_src emacs-lisp
+  ;;(Comments in Lisp are introduced with a semicolon and continue to the end of the line.)
+  ;;to apply the + function to the arguments x and y, in Lisp you write
+  (+ x y )
+#+end_src
+
+
+
+#+begin_src emacs-lisp
+
+    ;;1.Though unfamiliar, prefix notation has some benefits over infix notation. In infix languages, ;;to write the sum of five variables you need four plus signs:
+    ;;a+b+c+d+e
+    ;;Lisp is more concise:
+    (+ a b c d e)
+
+    ;;2.Also, questions of operator precedence do not arise.
+    ;;For example, is the value of 3 + 4 * 5 35 or 23? It depends on whether * has higher precedence than +.
+    ;;But in Lisp, the confusion vanishes:
+    (+ 3 (* 4 5)) ;result is 23
+    (* (+ 3 4) 5) ;result is 35
+
+    ;;3.Finally, while infix languages need commas to separate the arguments to a function:
+    ;;foo(3 + 4, 5 + 6)~
+    ;;Lisp doesn't need that extra bit of syntax:
+    (foo (+ 3 4) (+ 5 6))
+#+end_src
+
+*** List data type
+
+Lisp has a built-in data type called a list.
+
+A list is a Lisp object containing zero or more other Lisp objects, surrounded by parentheses.
+
+#+begin_src emacs-lisp
+  (hello there) ;; list containing two "symbols"
+
+  (1 2 "xyz") ;; two numbers and a string
+
+  (a (b c)) ;; a symbol and a sublist (containing two symbols)
+
+  () ;; the empty list
+#+end_src
+
+Lists can be assigned to variables, passed as arguments to functions and returned from
+them, constructed with such functions as =cons= and =append=, and taken apart with such
+functions as =car= and =cdr=.
+
+*** Garbage collection
+
+Lisp is a garbage-collected language, which means that Lisp itself automatically reclaims the memory used by your program's data structures.
+
+** Keys and Strings
+
+Backspace and Delete
+
+To Emacs, what matters isn't the label but the numeric character code that the key generates when pressed.
+
+Regardless of the label on the key, the "move left and erase the previous character" key may generate an ASCII "backspace" code (decimal 8, usually denoted BS) or an ASCII "delete" code (decimal 127, usually denoted DEL).
+
+In its default configuration, Emacs believes only DEL is the code meaning "move left and erase the previous character."
+
+The first thing we'll look at is adding some code to .emacs to make BS and DEL both do "back up and erase a character," moving the Help command to some other key.
+
+The goal of this chapter is to make any BS-generating key work the same as any DEL-generating key.
+
+*** Binding Keystrokes to Commands
+
+In Emacs, every keystroke invokes a command or is part of a multiple-key sequence that invokes a command.
+
+Commands are special kinds of Lisp functions, as we will see.
+
+One Lisp function for doing this is ~global-set-key~.
+
+#+begin_src emacs-lisp
+
+  ;;Remember that a function call in Lisp is simply a parenthesized list.
+  ;;The first element of the list is the name of the function, and any remaining elements are the arguments.
+  (global-set-key keysequence command)
+
+#+end_src
+
+**** Denoting Keys in Strings
+
+| "xyz" ; three-character string                                   |
+| "I said, \"Look out!\""                                          |
+
+An ordinary key is denoted by writing the character in a string. 
+
+| the keystroke q is denoted in Lisp by the string "q"                                         |
+| The keystroke \ would be written as "\\".                                                    |
+| META-question-mark are denoted in strings using a special syntax: "\M-?".                    |
+| M- x is shorthand for META- x, and "\M-x" is the string version                              |
+| CONTROL-x is abbreviated C- x in Emacs documentation, and in strings is written as: "\C-x ". |
+| CONTROL- x is also sometimes abbreviated ^x in documentation, string syntax: "\^x".          |
+| CONTROL META-x is denoted C-M- x and is written as ''\C-\M- x " in strings                   |
+
+One other way to write the keysequence "\M-?" is "\e?".
+
+The string "\e" denotes the escape character, and M- x is the same as ESC x.
+
+In Lisp, functions are named with symbols.
+
+Symbols are like function names or variable names in other languages, although Lisp allows a wider variety of characters in symbols than most languages allow in their variable names.
+
+For instance, legal Lisp symbols include =let*= and =up&down-p=.
+
+** Check keystroke bound command
+
+=C-h b=, which invokes another command called describe-bindings
+
+** The right way to bind keystroke to command
+
+Our Lisp example is almost complete, but we can't just write
+
+#+begin_src emacs-lisp
+
+  (global-set-key "\M-?" help-command) ; almost right!
+  
+#+end_src
+
+
+=This is wrong because of the way symbols are interpreted when they appear in Lisp
+expressions.=
+
+    - =If a symbol appears in the first position of a list, it's the name of a function to
+    execute.!!!=
+    - =If it appears elsewhere, it's a variable whose value needs to be retrieved.!!!=
+
+But when we run global-set-key as shown, we don't want the value contained in help-command, whatever that may be. The value we want is the symbol help-command itself.
+
+In short, we wish to prevent the symbol from being evaluated before it's passed to global-set-key.
+
+After all, as far as we know, help-command doesn't have a value as a variable.
+
+=The way to prevent a symbol (or any Lisp expression) from being evaluated is to quote it by
+preceding it with a single quote (').=
+
+#+begin_src emacs-lisp
+
+  (global-set-key "\M-?" 'help-command)
+  
+#+end_src
+
+Incidentally, to illustrate the difference between quoting and not quoting, the same effect could be achieved with
+
+#+begin_src emacs-lisp
+
+  (setq x 'help-command) ; setq assigns a variable
+  (global-set-key "\M-?" x) ; usex's value
+
+#+end_src
+
+=Symbols aren't the only things that may follow a ' character; any Lisp expression can be quoted, including lists, numbers, strings, and other kinds of expressions we'll learn about later. Writing 'expr is shorthand for=
+
+#+begin_src emacs-lisp
+
+  (quote expr)
+
+#+end_src
+
+=which, when evaluated, yields expr.=
+
+You might have noticed that a quote is required before the symbol help-command but not before the string argument, "\M-?". =This is because in Lisp, strings are self-evaluating, which means that when the string is evaluated, the result is the string itself.= So quoting it, while harmless, is redundant. =Numbers, characters, and vectors are other types of self-evaluating Lisp expressions.=
+
+#+begin_src emacs-lisp
+
+  ;;finally
+  (global-set-key "\M-?" 'help-command)
+  (global-set-key "\C-h" delete-backward-char)
+
+#+end_src
+
+** Evaluating Lisp Expressions
+
+There are several ways to explicitly evaluate Lisp expressions.
+
+- You can put the Lisp expressions in a file, then load the file.
+  ~M-x load-file RET xxx.el RET~
+- use the command ~eval-last-sexp~
+
+  Sexp is an abbreviation for S-expression, which in turn is short for symbolic expression, which is another name for "Lisp expression."
+
+  bound to =C-x C-e=
+
+  This command evaluates the Lisp expression to the left of the cursor.
+
+- use the command ~eval-expression~
+
+  bound to =M-:=
+
+  #+begin_src emacs-lisp
+
+    (put 'eval-expression 'disabled nil)
+
+  #+end_src
+
+ (The =put= function relates to property lists, which we'll see in the section on "Symbol Properties" in Chapter 3.)
+
+- use the *scratch* buffer
+
+The buffer is in =Lisp Interaction mode=
+
+In this mode, pressing =C-j= invokes ~eval-print-last-sexp~, which is like ~eval-lastsexp~ except that the result of the evaluation is inserted into the buffer at the location of the cursor
+
+Another feature of Lisp Interaction mode is =its ability to complete a partially typed Lisp symbol= when you press =M-TAB= (which invokes ~lisp-complete-symbol~).
+
+** Apropos
+
+Allows you to search all known variables and functions for a pattern you specify.
+
+~M-x apropos RET pattern RET~
+
+For historical reasons, the way to write the DEL character is CONTROL-question-mark
+
+You may invoke apropos with a prefix argument.
+
+In Emacs, pressing C-u before executing a command is a way to pass extra information to the command. Frequently, C-u is followed by a number;
+
+for instance, C-u 5 C-b means "move the cursor left 5 characters." Sometimes the extra information is just the fact that you pressed C-u.
+
+When apropos is invoked with a prefix argument, it not only reports Emacs functions and
+variables that match the search pattern, it also reports any existing keybindings for each
+command in the list.
+
+~C-u M-x apropos RET pattern RET~
+
+we can further limit the scope of the search by using ~command-apropos~ (C-h a) instead of ~apropos~.
+
+The difference between a command and other Lisp functions is that commands have been written specially to be invoked interactively, i.e., from a keybinding or with M-x. Functions that aren't commands can only be invoked as function calls from other Lisp code or by such commands as ~eval-expression~ and ~eval-last-sexp~.
+
+* Simple New Commands
+
+In this chapter we'll develop several very small Lisp functions and commands, introducing a wealth of concepts.
+
+** define a lisp function
+
+check =The right way to bind keystroke to command=
+
+#+begin_src emacs-lisp
+  (defun function_name (function's parameter list)
+    ;;Emacs displays the docstring when showing online help about the function, as with the commands describe-function (C-h f) or apropos.
+    "function's documentation string or docstring"
+
+    (interactive);;It's optional, It distinguishes this function as an interactive command
+    ;;A command, in Emacs, is a Lisp function that can be invoked interactively, which means it can be invoked from a keybinding or by typing M-x command-name.
+    ;;Not all Lisp functions are commands, but all commands are Lisp functions.
+    ;;Any Lisp function, including interactive commands, can be invoked from within other Lisp code using the (function arg . . . ) syntax.
+    ;;Check [[** The right way to bind keystroke to command]]
+    ;;A function is turned into an interactive command by using the special (interactive) expression at the beginning of the function definition (after the optional docstring).
+
+    ;;An interactive command is, as we have observed, a kind of Lisp function.
+    ;;That means that the command may take arguments.
+    ;;Passing arguments to a function from Lisp is easy; they simply get written down in the function call, as in (other-window -1).
+
+    ;;But what if the function is invoked as an interactive command? Where do the arguments come from then? Answering this question is the purpose of the interactive declaration.
+    ;;The argument to interactive describes how to obtain arguments for the command that contains it.
+    ;; - When the command takes no arguments, then i interactive has no arguments, as in our first draft of other-window-backward.
+    ;; - When the command does take arguments, then interactive takes one argument: a string of code letters, one code letter per argument being described.
+    ;;   - The code letter p used in this example means, "if there is a prefix argument, interpret it as a number, and if there is no prefix argument, interpret that as the number 1."
+    ;;     (interactive "p")
+
+
+    ;;(function arg ...)
+    (Lisp Expression))
+#+end_src
+
+** Traversing Windows
+
+ dissatisfied with the keybinding C-x o, other-window
+
+ What I really wanted was one keybinding meaning ="next window"= and a different keybinding meaning ="previous window."=
+
+chose =C-x C-n= for "next window" and =C-x C-p= for "previous window." 
+
+1.used the Help subcommand describe-key to see whether C-x C-n and C-x C-p were already bound to other commands
+
+Binding them to commands for "next window" and "previous window" would override their default bindings. But since those aren't commands I use very often, I didn't mind losing the keybindings for them. =I can always execute them using M-x. Emacs 所有命令都可以通过M-x执行=
+
+#+begin_src emacs-lisp
+
+  (global-set-key "\C-x\C-n" 'other-window)
+
+  ;;Defining a command to bind to C-x C-p was trickier.
+  ;;There was no existing Emacs command meaning "move the cursor to the previous window."
+  ;;Time to define one!
+
+  (defun other-window-backward ( ) 
+    "Select the previous window." ;;docstring 
+    (interactive) ;; turned into an interactive command
+    (other-window -1) ;;invokes the function other-window with an argument of -1.
+    )
+
+  ;;It's now possible to call it in Lisp programs by writing (other-window-backward);
+  ;;to invoke it by typing M-x other-window-backward RET;
+  ;;even to get help on it by typing M-? f other-window-backward RET.
+  ;;Now all that's needed is the keybinding:
+
+  (global-set-key "\C-x\C-p" 'other-window-backward)
+#+end_src
+
+*** Parameterizing other-window-backward
+
+improve on it a bit
+
+When using C-x o (or, now, C-x C-n) to invoke other-window, you can specify a numeric prefix argument n to change its behavior.
+
+If n is given, other-window skips forward that many windows.
+
+For instance, C-u 2 C-x C-n means "move to the second window following this one."
+
+=As we've seen, n may be negative to skip backward some number of windows.=
+
+#+begin_src emacs-lisp
+
+  ;;In order to change it, we must parameterize the function to take one argument: the number of windows to skip.
+  (defun other-window-backward (n) 
+    "Select Nth previous window." ;;docstring 
+
+    ;;An interactive command is, as we have observed, a kind of Lisp function.
+    ;;That means that the command may take arguments.
+    ;;Passing arguments to a function from Lisp is easy; they simply get written down in the function call, as in (other-window -1).
+
+    ;;But what if the function is invoked as an interactive command? Where do the arguments come from then? Answering this question is the purpose of the interactive declaration.
+    ;;The argument to interactive describes how to obtain arguments for the command that contains it.
+    ;; - When the command takes no arguments, then i interactive has no arguments, as in our first draft of other-window-backward.
+    ;; - When the command does take arguments, then interactive takes one argument: a string of code letters, one code letter per argument being described.
+    ;;   - The code letter p used in this example means, "if there is a prefix argument, interpret it as a number, and if there is no prefix argument, interpret that as the number 1."
+    ;;     The parameter n receives the result of this interpretation when the command is invoked.
+
+    (interactive "p") ;; turned into an interactive command
+
+    ;;(- n). This computes the negative of n by passing it to the function -.
+    (other-window (- n)) ;;invokes the function other-window with an argument of -1.
+    )
+#+end_src
+
+It's important to understand the difference between the two expressions (- n) and -1. =The first is a function call.= There must be a space between the function name and the argument. The
+second expression is an integer constant. There may not be a space between the minus sign and
+the 1.It is certainly possible to write (- 1) (though there's no reason to incur the cost of a
+function call when you can alternatively write -1). =It is not possible to write -n, because n is not a constant.=
+
+*** Making the Argument Optional
