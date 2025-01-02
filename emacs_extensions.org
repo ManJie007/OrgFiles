@@ -2,7 +2,7 @@
 
 When Emacs starts, it reads and executes the contents of the .emacs file in your home directory.
 
-** Lisp
+** Lisp :lisp:
 
 the language of the .emacs file.
 
@@ -128,7 +128,7 @@ For instance, legal Lisp symbols include =let*= and =up&down-p=.
 
 =C-h b=, which invokes another command called describe-bindings
 
-** The right way to bind keystroke to command
+** The right way to bind keystroke to command :lisp:
 
 Our Lisp example is almost complete, but we can't just write
 
@@ -252,12 +252,18 @@ The difference between a command and other Lisp functions is that commands have 
 
 In this chapter we'll develop several very small Lisp functions and commands, introducing a wealth of concepts.
 
-** define a lisp function
+** define a lisp function :lisp:
 
 check =The right way to bind keystroke to command=
 
 #+begin_src emacs-lisp
   (defun function_name (function's parameter list)
+
+    ;;(defun function_name (&optional function's parameter list)
+    ;;The keyword &optional appearing in a parameter list means that all subsequent parameters are optional.
+    ;; The function may be called with or without a value for an optional parameter.
+    ;;If no value is given, the optional parameter gets the special value nil.
+
     ;;Emacs displays the docstring when showing online help about the function, as with the commands describe-function (C-h f) or apropos.
     "function's documentation string or docstring"
 
@@ -283,6 +289,202 @@ check =The right way to bind keystroke to command=
     ;;(function arg ...)
     (Lisp Expression))
 #+end_src
+
+** nil :lisp:
+*** It designates falsehood
+
+  In the Lisp structures that test a true\/false condition—if, cond, while, and, or, and not-a value of nil means "false" and any other value means "true."
+
+  #+begin_src emacs-lisp
+
+    ;;Lisp's version of an if-then-else statement
+    (if n 
+        (other-window (- n)) 
+      (other-window -1))
+    ;;first n is evaluated
+    ;;   If the value of n is true (non-nil), then (other-window (- n)) is evaluated,
+    ;;   otherwise (other-window -1) is evaluated
+
+  #+end_src
+
+There is another =symbol, t= , that designates truth
+
+*** It is indistinguishable from the empty list
+
+Inside the Lisp interpreter, the symbol nil and the empty list ( ) are the same object. 
+
+If you call ~listp~, which tests whether its argument is a list, on the symbol nil, you'll get the result t, which means truth. listp == list predict
+
+Likewise, if you call ~symbolp~ , which tests whether its argument is a symbol, on the empty list, you'll get t again.
+
+*** It is its own value
+
+  When you evaluate the symbol nil, the result is nil.
+
+For this reason, unlike other symbols, nil doesn't need to be quoted when you want its name instead of its value, because its name is the same as its value.
+
+#+begin_src emacs-lisp
+
+  (setq x nil) ;;assign nil to variable x
+  ;;instead of (setq x 'nil)
+
+#+end_src
+
+There is a symbol, t, for designating truth. =Like nil, t is its own value and doesn't need to be quoted.=
+
+And also unlike nil, which is the only way to denote falsehood, all other Lisp values denote truth just like t does.
+  
+** Condensing the Code :lisp:
+
+#+begin_src emacs-lisp
+
+  (if n ;; if this. . . 
+      (other-window (- n)) ;;. . . then this 
+    (other-window -1)) ;;. . . else this
+
+#+end_src
+
+Lisp version of an if-then-else statement
+
+The first argument to if is a test.
+
+It is evaluated to see whether it yields truth (any expression except nil) or falsehood (nil).
+
+     If it's truth, the second argument-the "then" clause-is evaluated.
+
+     If it's falsehood, the third argument—the "else" clause (which is optional)—is evaluated.
+
+=The result of if is always the result of the last thing it evaluates.!!! 可以看成一个有返回值的if函数 ()是一个有返回值的表达式=
+
+Observe that other-window is called in both branches (the "then" and the "else" clauses) of the if.In this case, we can make the if expression more concise by factoring out the common subexpressions.
+
+#+begin_src emacs-lisp
+
+  ;;We can therefore rewrite this expression as:
+  (other-window (if n (- n) -1))
+
+#+end_src
+
+We can factor out common subexpressions again by observing that in both branches of the if, we're looking for the negative of something—either the negative of n or the negative of 1.
+
+#+begin_src emacs-lisp
+
+  (if n (- n) -1)
+  ;;can become
+  (- (if n n 1))
+
+#+end_src
+
+#+begin_src emacs-lisp
+
+  ;;In general,
+  (if test 
+    (a b) 
+   (a c))
+
+  ;;can be shortened to
+
+  (a (if test b c))
+
+#+end_src
+
+** Logical Expressions :lisp:
+
+An old Lisp programmers' trick can now be used to make this expression even more concise:
+
+#+begin_src emacs-lisp
+
+  (if n n 1)
+  ;;equal
+  (or n 1)
+
+#+end_src
+
+=The function or= works like the logical "or" in most languages:
+
+if all of its arguments are false, it returns falsehood, otherwise it returns truth.
+
+But Lisp's =or= has an extra bit of usefulness:
+
+=it evaluates each of its arguments in order until it finds one that's non-nil, then it returns that value. If it doesn't find one, it returns nil.=
+
+=!!! 可以看成一个有返回值的or函数 ()是一个有返回值的表达式=
+
+So the return value from or isn't merely false or true, =it's false or the first true value in the list.=
+
+#+begin_src emacs-lisp
+
+  ;;This means that generally speaking,
+  (if a a b)
+  ;;can be replaced by
+  (or a b)
+
+#+end_src
+
+In fact, it often should be written that way because if a is true, =then (if a a b) will evaluate it twice whereas (or a b) won't.= (On the other hand, if you specifically want a evaluated twice, then of course you should use if.) In fact,
+
+#+begin_src emacs-lisp
+
+  (if a a ;; if a is true, return a
+      (if b b ;; else if b is true, return b
+          ;;. . . 
+              (if y y z))) ;; else if y is true, return y, else z
+
+  ;;(which might look artificial here but is actually a pretty common pattern in actual programs) can be changed to the following form.
+
+  (or a b ... y z)
+
+#+end_src
+
+Similarly
+
+#+begin_src emacs-lisp
+
+  (if a
+      (if b
+          ;;. . .
+              (if y z)))
+
+  ;;(note that none of the ifs in this example has an "else" clause)!!! can also be written as
+
+  (and a b . . . y z)
+
+#+end_src
+
+because =and(function)= works by evaluating each of its arguments in order until it finds one that's nil.
+
+=If it finds one, it returns nil, and if it doesn't find one, it returns the value of the last argument.=
+
+#+begin_src emacs-lisp
+
+  ;;One other shorthand to watch out for: some programmers like to turn
+  (if (and a b . . . y) z)
+  into
+  (and a b . . . y z)
+  ;;but not me because, while they're functionally identical, the former has shades of meaning—"do z if a through y are all true"—that the latter doesn't, which could make it easier for a human reader to understand.
+#+end_src
+
+** defalias :lisp:
+
+use ~defalias~ to refer to any Lisp function by a different name
+
+#+begin_src emacs-lisp
+(defalias 'new_name 'old_name)
+#+end_src
+
+There. Now we'll never have to deal with those ambiguous names again (=although the original names remain in addition to the new aliases=)
+
+** Hooks :lisp:
+
+For Emacs to make the buffer read-only when I first visit the file, I have to somehow tell Emacs, "execute a certain piece of Lisp code whenever I visit a file." The action of visiting a file should trigger a function I write. This is where =hooks= come in.
+
+=A hook is an ordinary Lisp variable whose value is a list of functions that get executed under specific conditions.=
+
+For instance, the variable ~write-file-hooks~ is a list of functions that Emacs executes whenever a buffer is saved, and ~post-command-hook~ is a list of functions to run after every interactive command. The hook that interests us most for this example is ~find-file-hooks~, which Emacs runs every time a new file is visited. (There are many more hooks, some of which we'll be looking at later in the book. =To discover what hooks are available, try M-x apropos RET hook RET.=)
+
+The function ~add-hook~ adds a function to a hook variable.
+
+=Functions that appear in hook variables take no arguments.=
 
 ** Traversing Windows
 
@@ -360,3 +562,898 @@ the 1.It is certainly possible to write (- 1) (though there's no reason to incur
 function call when you can alternatively write -1). =It is not possible to write -n, because n is not a constant.=
 
 *** Making the Argument Optional
+
+improve on it a bit
+
+make the argument n optional when invoked from Lisp code, just as giving a prefix argument is optional when invoking other-window-backward interactively
+
+It should be possible to pass zero arguments (like this: (other-window-backward)) and get the default behavior (as if calling this: (other-window-backward 1) ).
+
+#+begin_src emacs-lisp
+
+  (defun other-window-backward (&optional n) 
+      "Select Nth previous window." 
+      (interactive "p") 
+      (if n 
+          (other-window (- n)) ;ifn s non-nil 
+        (other-window -1))) ;ifn snil
+
+#+end_src
+
+=The keyword &optional appearing in a parameter list means that all subsequent parameters
+are optional.=
+
+=The function may be called with or without a value for an optional parameter. If
+no value is given, the optional parameter gets the special value nil.=
+
+*** The Best other-window-backward
+
+check =The right way to bind keystroke to command=
+check =define a lisp function=
+check =nil=
+check =Condensing the Code=
+check =Logical Expression=
+=!!! 可以看成一个有返回值的函数 ()是一个有返回值的表达式=
+
+Using our factored-out version of the call to other-window, the function definition now looks like this:
+
+#+begin_src emacs-lisp
+
+  (defun other-window-backward (&optional n) 
+      "Select Nth previous window." 
+      (interactive "p") 
+      (other-window (- (or n 1))))
+
+#+end_src
+
+But the best definition of all—the most Emacs-Lisp-like—turns out to be:
+
+#+begin_src emacs-lisp
+
+  (defun other-window-backward (&optional n) 
+    "Select Nth previous window." 
+    (interactive "P") 
+    (other-window (- (prefix-numeric-value n))))
+
+#+end_src
+
+In this version, the code letter in the interactive declaration is no longer lowercase p, it's capital P;
+    =The capital P means "when called interactively, leave the prefix argument in raw form and assign it to n."=
+    =The raw form of a prefix argument is a data structure used internally by Emacs to record the prefix information the user gave before invoking a command.=
+
+and the argument to other-window is (- (prefix-numeric-value n)) instead of (- (or n 1)).
+    =!!! 可以看成一个有返回值的函数 ()是一个有返回值的表达式=
+    =The function prefix-numeric-value can interpret that data structure as a number in exactly the way (interactive "p") did.=
+    =What's more, if other-window-backward is called non-interactively (and n is therefore not a prefix argument in raw form), prefix-numeric-value does the right thing—namely, return n unchanged if it's a number, and return 1 if it's nil.=
+
+this version is more "Emacs-Lisp-like" because it achieves better code reuse.
+
+It uses the built-in function prefix-numeric-value rather than duplicating that function's behavior.
+    
+** Line-at-a-Time Scrolling
+
+Emacs has two scrolling functions, scroll-up and scroll-down, which are bound to C-v and M-v
+
+Each function takes an optional argument telling it how many lines to scroll.
+
+By default, they each scroll the text one windowful at a time.
+
+Though I could scroll up and down one line at a time with C-u 1 C-v and C-u 1 M-v, I wanted to be able to do it with a single keystroke.
+
+First things first, though. I can never remember which function does what. Does ~scroll-up~ mean that the text moves up, revealing parts of the file that are farther down? Or does it mean that we reveal parts of the file that are farther up, moving the text down? I'd prefer that these functions had less confusing names, like ~scroll-ahead and scroll-behind~.
+
+use ~defalias~ to refer to any Lisp function by a different name
+
+#+begin_src emacs-lisp
+
+  (defalias 'scroll-ahead 'scroll-up) 
+  (defalias 'scroll-behind scroll-down)
+
+#+end_src
+
+There. Now we'll never have to deal with those ambiguous names again (=although the original names remain in addition to the new aliases=)
+
+#+begin_src emacs-lisp
+
+  ;;Now to define two new commands that call scroll-ahead and scroll-behind with the right arguments.
+  (defun scroll-one-line-ahead () 
+    "Scroll ahead one line." 
+    (interactive) 
+    (scroll-ahead 1))
+
+  (defun scroll-one-line-behind () 
+    "Scroll behind one line." 
+    (interactive) 
+    (scroll-behind 1))
+
+  ;;As before, we can make the functions more general by giving them an optional argument:
+  ;;check Traversing Window
+
+  (defun scroll-n-lines-ahead (&optional n) 
+     "Scroll ahead N lines (1 by default)." 
+     (interactive "P") 
+     (scroll-ahead (prefix-numeric-value n))) 
+
+  (defun scroll-n-lines-behind (&optional n) 
+      "Scroll behind N lines (1 by default)." 
+      (interactive "P") 
+      (scroll-behind (prefix-numeric-value n)))
+
+  ;;Finally, we choose keys to bind to the new commands.
+  ;;I like C-q for scroll-n-lines-behind and C-z for scroll-n-lines-ahead:
+
+  (global-set-key "\C-q" 'scroll-n-lines-behind) 
+  (global-set-key "\C-z" 'scroll-n-lines-ahead)
+
+  ;;By default, C-q is bound to quoted-insert.
+  ;;I move that infrequently used function to C-x C-q:
+  ;;check The right way to bind keystroke to command
+  ;;The default binding of C-x C-q is vc-toggle-read-only, which I don't mind losing.
+
+  (global-set-key "\C-x\C-q" 'quoted-insert)
+
+  ;;C-z has a default binding of iconify-or-deiconify-frame when running under X, and suspend-emacs when running in a character terminal.
+  ;; In both cases, the function is also bound to C-x C-z, so there's no need to rebind them.
+
+#+end_src
+
+** Other Cursor and Text Motion Commands
+
+#+begin_src emacs-lisp
+
+     (defun point-to-top () 
+         "Put point on top line of window." 
+         (interactive) 
+         (move-to-window-line O)) 
+
+     (global-set-key "\M-," 'point-to-top)
+
+
+     ;;The suggested keybinding replaces tags-loop-continue, which I like to put on C-x,:
+     (global-set-key "\C-x," 'tags-loop-continue)
+
+     ;;The next function makes the cursor jump to the bottom left of the window it's in.
+     (defun point-to-bottom () 
+       "Put point at beginning of last visible line."
+       (interactive) 
+       (move-to-window-line -1)) 
+
+     (global-set-key "\M-." 'point-to-bottom)
+
+     ;;The suggested keybinding in this case replaces find-tag.
+     ;;I put that on C-x . which in turn replaces set-fill-prefix, which I don't mind losing.
+
+     (defun line-to-top () 
+       "Move current line to top of window." 
+       (interactive) 
+       (recenter O)) 
+
+    (global-set-key "\M-!" 'line-to-top)
+    ;;This command scrolls the window so that whichever line the cursor is on becomes the top line in the window.
+    ;;The keybinding replaces shell-command.
+
+#+end_src
+
+** Clobbering Symbolic Links
+
+In UNIX, a symbolic link, or =symlink=, is a file that refers to another file by name.
+
+Suppose you visit a file in Emacs that is really a symlink to some other file. You make some
+changes and press C-x C-s to save the buffer. What should Emacs do?
+
+1. Replace the symbolic link with the edited version of the file, breaking the link but leaving the original link target alone.
+2. Overwrite the file pointed to by the symbolic link.
+3. Prompt you to choose one of the above actions.
+4. Something else altogether.
+
+I believe that the right answer changes depending on the situation, and that the user should be forced to think about what's right each time this comes up.
+
+Here's what I do: when I visit a file that's really a symlink, I have Emacs automatically make the buffer read-only. This causes a ''Buffer is read-only" error as soon as I try to change anything in the buffer. The error acts as a reminder, alerting me to the possibility that I'm visiting a symlink. Then I choose how to proceed using one of two special commands I've designed.
+
+*** Hooks                                                            :lisp:
+
+For Emacs to make the buffer read-only when I first visit the file, I have to somehow tell Emacs, "execute a certain piece of Lisp code whenever I visit a file." The action of visiting a file should trigger a function I write. This is where =hooks= come in.
+
+=A hook is an ordinary Lisp variable whose value is a list of functions that get executed under specific conditions.=
+
+For instance, the variable ~write-file-hooks~ is a list of functions that Emacs executes whenever a buffer is saved, and ~post-command-hook~ is a list of functions to run after every interactive command. The hook that interests us most for this example is ~find-file-hooks~, which Emacs runs every time a new file is visited. (There are many more hooks, some of which we'll be looking at later in the book. =To discover what hooks are available, try M-x apropos RET hook RET.=)
+
+The function ~add-hook~ adds a function to a hook variable.
+
+=Functions that appear in hook variables take no arguments.=
+
+*** create a function to add to find-file-hooks
+
+#+begin_src emacs-lisp
+
+  (defun read-only-if-symlink () ;;First, notice that the parameter list is empty. Functions that appear in hook variables take no arguments.
+      (if (file-symlink-p buffer-file-name) 
+          ;;The function file-symlink-p tests whether its argument, which is a string naming a file, refers to a symbolic link.
+          ;; It's a Boolean predicate, meaning it returns true or false.
+          ;;In Lisp, predicates traditionally have names ending in p or -p.
+          ;;The argument to file-symlink-p is buffer-file-name.
+          ;;This predefined variable has a different value in every buffer, and is therefore known as a buffer-local variable.
+          ;;It always refers to the name of the file in the current buffer.
+          ;;The "current buffer," when find-file-hooks gets executed, is the newly found file.
+          (progn 
+              ;;A progn expression evaluates each of its subexpressions in order and returns the value of the last one.
+              (setq buffer-read-only t) 
+              ;;The variable buffer-read-only is also buffer-local and controls whether the current buffer is read-only.
+              (message "File is a symlink"))))
+
+
+  ;;Now that we've defined read-only-if-symlink, we can call
+  ;;to add it to the list of functions that are called whenever a new file is visited.
+  (add-hook 'find-file-hooks 'read-only-if-symlink)
+
+#+end_src
+
+*** Anonymous Functions                                              :lisp:
+
+When you use =defun= to define a function, you give it a name by which the function can be called from anywhere.
+
+But what if the function won't ever be called from anywhere else? What if it needs to be available in only one place?
+
+Arguably, read-only-if-symlink is needed only in the find-file-hooks list; =in fact, it might even be harmful for it to be called outside of find-file-hooks.=
+
+It's possible to define a function without giving it a name. Such functions are appropriately known as =anonymous functions.= They're created with the =Lisp keyword lambda=, which works exactly like =defun= except that the name of the function is left out:
+
+#+begin_src emacs-lisp
+
+  (lambda () 
+      (if (file-symlink-p buffer-file-name) 
+          (progn 
+            (setq buffer-read-only t) 
+            (message "File is a symlink"))))
+
+#+end_src
+
+The empty parentheses after the =lambda= are where the anonymous function's parameters would be listed. This function has no parameters. =An anonymous function definition can be used wherever you might use the name of a function:=
+
+#+begin_src emacs-lisp
+
+  (add-hook 'find-file-hooks 
+    '(lambda () 
+        (if (file-symlink-p buffer-file-name) 
+            (progn 
+            (setq buffer-read-only t)
+            (message "File is a symlink")))))
+
+#+end_src
+
+Now only find-file-hooks has access to the function; no other code is able to call it.
+
+=There's one reason not to use anonymous functions in hooks. If you ever wish to remove a function from a hook, you need to refer to it by name in a call to ~remove-hook~, like so:=
+
+#+begin_src emacs-lisp
+
+  (remove-hook 'find-file-hooks 'read-only-if-symlink)
+
+#+end_src
+
+This is much harder if the function is anonymous.
+
+*** Handling the Symlink
+
+When Emacs alerts me that I'm editing a symlink,
+
+- I may wish to replace the buffer with one visiting the target of the link instead;
+- or I may wish to "clobber" the symlink (replacing the link itself with an actual copy of the real file) and visit that.
+
+Here are two commands for these purposes:
+
+#+begin_src emacs-lisp
+
+  (defun visit-target-instead () 
+    "Replace this buffer with a buffer visiting the link target." 
+    (interactive) 
+    (if buffer-file-name 
+        (let ((target (file-symlink-p buffer-file-name))) 
+            (if target 
+                (find-alternate-file target) 
+                (error "Not visiting a symlink"))) 
+       (error "Not visiting a file"))) 
+
+  (defun clobber-symlink () 
+    "Replace symlink with a copy of the file." 
+    (interactive) 
+    (if buffer-file-name 
+        (let ((target (file-symlink-p buffer-file-name))) 
+            (if target 
+                (if (yes-or-no-p (format "Replace %s with %s?" buffer-file-name target)) 
+                (progn 
+                    (delete-file buffer-file-name) 
+                    (write-file buffer-file-name))) 
+              (error "Not visiting a symlink"))) 
+       (error "Not visiting a file")))
+
+#+end_src
+
+#+begin_src emacs-lisp
+  (if buffer-file-name
+     ;;. . .
+     (error "Not visting a file"))
+#+end_src
+
+This test is necessary because =buffer-file-name may be nil (in the case that the current buffer isn't visiting any file---e.g., it might be the *scratch* buffer)=, and passing nil to file-symlink-p would generate the error, "Wrong type argument: stringp, nil".
+
+=The error message means that some function was called expecting a string—an object satisfying the predicate stringp—but got nil instead.=
+
+=When error is called, the current command aborts and Emacs returns to its top-level to await the user's next action.=
+
+=Why wasn't it necessary to test buffer-file-name in read-only-ifsymlink? Because that function only gets called from find-file-hooks, and find-file-hooks only gets executed when visiting a file.=
+
+=Most languages have a way to create temporary variables (also called local variables) that exist only in a certain region of code, called the variable's scope.= In Lisp, temporary variables are created with let, whose syntax is
+
+#+begin_src emacs-lisp
+  (let ((var1 value1)
+        (var2 value2)
+        . . .
+        (varn valuen))
+    body1 body2 ... bodyn)
+#+end_src
+
+=This gives var1 the value value1 , var2 the value value2 , and so on; and var1 and var2 can be used only within the body1 expressions.=
+
+using temporary variables helps to avoid conflicts between regions of code that happen to use identical variable names.
+
+#+begin_src emacs-lisp
+
+    ;;So the expression
+    (let ((target (file-symlink-p buffer-file-name))) . . . )
+    ;;creates a temporary variable named target whose value is the result of calling
+    ;;function with p or -p
+    ;;As mentioned earlier, file-symlink-p is a predicate, which means it returns truth or falsehood.
+    ;;But because "truth" in Lisp can be represented by any expression except nil, file-symlink-p isn't constrained to returning t if its argument really is a symlink.
+    ;; In fact, it returns the name of the file to which the symlink refers.
+    ;;So if buffer-file-name is the name of a symlink, target will be the name of the symlink's target.
+    (file-symlink-p buffer-file-name) 
+
+#+end_src
+
+After executing the body of the let, the variable target no longer exists.
+
+Within the let, if target is nil (because file-symlink-p returned nil, because buffer-file-name must not be the name of a symlink), then in the "else" clause we issue an informative error message, "Not visiting a symlink." Otherwise we do something else that depends on which function we're talking about.
+
+At this point, visit-target-instead does
+
+~(find-alternate-file target)~
+
+which replaces the current buffer with one visiting ~target~, prompting the user first in case
+there are unsaved changes in the original buffer. It even reruns the ~find-file-hooks~ when
+the new file is visited, which is good because it, too, may be a symlink!
+
+At the point where visit-target-instead calls find-alternate-file,
+clobber-symlink does this instead:
+
+~(if (yes-or-no-p . . . ) . . . )~
+
+The function ~yes-or-no-p~ asks the user a yes or no question and returns true if the answer
+was "yes," false otherwise.
+
+The question, in this case, is:
+
+~(format "Replace %s with %s? buffer-file-name target)~
+
+This constructs a string in a fashion similar to C's =printf=.
+
+The first argument is a pattern.
+
+Each %s gets replaced with the string representation of a subsequent argument.
+
+The first %s gets replaced with the value of buffer-file-name and the second gets replaced with the value of target. So if buffer-file-name is the string "foo" and target is "bar", the prompt will read, "Replace foo with bar?"
+
+(The format function understands other ~%-sequences in the pattern string~. For instance, =%c prints a single character= if the corresponding argument is an ASCII value. See the online help for format—by typing ~M-? f format RET~ —for a complete list.)
+
+After testing the return value of yes-or-no-p to make sure the user answered "yes," clobber-symlink does this:
+
+#+begin_src emacs-lisp
+
+  (progn 
+      (delete-file buffer-file-name) 
+      (write-file buffer-file-name))
+
+#+end_src
+
+=As we've seen, the progn is for grouping two or more Lisp expressions where only one is expected.= The call to delete-file deletes the file (which is really just a symlink), and the
+call to write-file saves the contents of the current buffer right back to the same filename,
+but this time as a plain file.
+
+I like to put these functions on =C-x t= for visit-target-instead (unused by default) and
+=C-x 1= for clobber-symlink (by default bound to count-linespage).
+
+* Lisp
+** Lisp :lisp:
+
+the language of the .emacs file.
+
+It is traditionally associated with artificial intelligence applications, for which Lisp is well-suited because it permits symbolic computation, =can treat code as data=, and simplifies building very complicated data structures.
+
+The word expression usually means any piece of Lisp code or any Lisp data structure. All Lisp expressions, whether code or data, can be evaluated by the Lisp interpreter built into Emacs to make them yield some computational result.
+
+
+Among the features that distinguish Lisp from other programming languages are:
+
+*** Fully-parenthesized prefix notation
+
+All expressions and function calls in Lisp are surrounded by parentheses,* and the function
+name always precedes the arguments to the function.
+
+#+begin_src emacs-lisp
+  ;;(Comments in Lisp are introduced with a semicolon and continue to the end of the line.)
+  ;;to apply the + function to the arguments x and y, in Lisp you write
+  (+ x y )
+#+end_src
+
+
+
+#+begin_src emacs-lisp
+
+    ;;1.Though unfamiliar, prefix notation has some benefits over infix notation. In infix languages, ;;to write the sum of five variables you need four plus signs:
+    ;;a+b+c+d+e
+    ;;Lisp is more concise:
+    (+ a b c d e)
+
+    ;;2.Also, questions of operator precedence do not arise.
+    ;;For example, is the value of 3 + 4 * 5 35 or 23? It depends on whether * has higher precedence than +.
+    ;;But in Lisp, the confusion vanishes:
+    (+ 3 (* 4 5)) ;result is 23
+    (* (+ 3 4) 5) ;result is 35
+
+    ;;3.Finally, while infix languages need commas to separate the arguments to a function:
+    ;;foo(3 + 4, 5 + 6)~
+    ;;Lisp doesn't need that extra bit of syntax:
+    (foo (+ 3 4) (+ 5 6))
+#+end_src
+
+*** List data type
+
+Lisp has a built-in data type called a list.
+
+A list is a Lisp object containing zero or more other Lisp objects, surrounded by parentheses.
+
+#+begin_src emacs-lisp
+  (hello there) ;; list containing two "symbols"
+
+  (1 2 "xyz") ;; two numbers and a string
+
+  (a (b c)) ;; a symbol and a sublist (containing two symbols)
+
+  () ;; the empty list
+#+end_src
+
+Lists can be assigned to variables, passed as arguments to functions and returned from
+them, constructed with such functions as =cons= and =append=, and taken apart with such
+functions as =car= and =cdr=.
+
+*** Garbage collection
+
+Lisp is a garbage-collected language, which means that Lisp itself automatically reclaims the memory used by your program's data structures.
+
+** The right way to bind keystroke to command :lisp:
+
+Our Lisp example is almost complete, but we can't just write
+
+#+begin_src emacs-lisp
+
+  (global-set-key "\M-?" help-command) ; almost right!
+  
+#+end_src
+
+
+=This is wrong because of the way symbols are interpreted when they appear in Lisp
+expressions.=
+
+    - =If a symbol appears in the first position of a list, it's the name of a function to
+    execute.!!!=
+    - =If it appears elsewhere, it's a variable whose value needs to be retrieved.!!!=
+
+But when we run global-set-key as shown, we don't want the value contained in help-command, whatever that may be. The value we want is the symbol help-command itself.
+
+In short, we wish to prevent the symbol from being evaluated before it's passed to global-set-key.
+
+After all, as far as we know, help-command doesn't have a value as a variable.
+
+=The way to prevent a symbol (or any Lisp expression) from being evaluated is to quote it by
+preceding it with a single quote (').=
+
+#+begin_src emacs-lisp
+
+  (global-set-key "\M-?" 'help-command)
+  
+#+end_src
+
+Incidentally, to illustrate the difference between quoting and not quoting, the same effect could be achieved with
+
+#+begin_src emacs-lisp
+
+  (setq x 'help-command) ; setq assigns a variable
+  (global-set-key "\M-?" x) ; usex's value
+
+#+end_src
+
+=Symbols aren't the only things that may follow a ' character; any Lisp expression can be quoted, including lists, numbers, strings, and other kinds of expressions we'll learn about later. Writing 'expr is shorthand for=
+
+#+begin_src emacs-lisp
+
+  (quote expr)
+
+#+end_src
+
+=which, when evaluated, yields expr.=
+
+You might have noticed that a quote is required before the symbol help-command but not before the string argument, "\M-?". =This is because in Lisp, strings are self-evaluating, which means that when the string is evaluated, the result is the string itself.= So quoting it, while harmless, is redundant. =Numbers, characters, and vectors are other types of self-evaluating Lisp expressions.=
+
+#+begin_src emacs-lisp
+
+  ;;finally
+  (global-set-key "\M-?" 'help-command)
+  (global-set-key "\C-h" delete-backward-char)
+
+#+end_src
+
+** Evaluating Lisp Expressions
+
+There are several ways to explicitly evaluate Lisp expressions.
+
+- You can put the Lisp expressions in a file, then load the file.
+  ~M-x load-file RET xxx.el RET~
+- use the command ~eval-last-sexp~
+
+  Sexp is an abbreviation for S-expression, which in turn is short for symbolic expression, which is another name for "Lisp expression."
+
+  bound to =C-x C-e=
+
+  This command evaluates the Lisp expression to the left of the cursor.
+
+- use the command ~eval-expression~
+
+  bound to =M-:=
+
+  #+begin_src emacs-lisp
+
+    (put 'eval-expression 'disabled nil)
+
+  #+end_src
+
+ (The =put= function relates to property lists, which we'll see in the section on "Symbol Properties" in Chapter 3.)
+
+- use the *scratch* buffer
+
+The buffer is in =Lisp Interaction mode=
+
+In this mode, pressing =C-j= invokes ~eval-print-last-sexp~, which is like ~eval-lastsexp~ except that the result of the evaluation is inserted into the buffer at the location of the cursor
+
+Another feature of Lisp Interaction mode is =its ability to complete a partially typed Lisp symbol= when you press =M-TAB= (which invokes ~lisp-complete-symbol~).
+
+** define a lisp function :lisp:
+
+check =The right way to bind keystroke to command=
+
+#+begin_src emacs-lisp
+  (defun function_name (function's parameter list)
+
+    ;;(defun function_name (&optional function's parameter list)
+    ;;The keyword &optional appearing in a parameter list means that all subsequent parameters are optional.
+    ;; The function may be called with or without a value for an optional parameter.
+    ;;If no value is given, the optional parameter gets the special value nil.
+
+    ;;Emacs displays the docstring when showing online help about the function, as with the commands describe-function (C-h f) or apropos.
+    "function's documentation string or docstring"
+
+    (interactive);;It's optional, It distinguishes this function as an interactive command
+    ;;A command, in Emacs, is a Lisp function that can be invoked interactively, which means it can be invoked from a keybinding or by typing M-x command-name.
+    ;;Not all Lisp functions are commands, but all commands are Lisp functions.
+    ;;Any Lisp function, including interactive commands, can be invoked from within other Lisp code using the (function arg . . . ) syntax.
+    ;;Check [[** The right way to bind keystroke to command]]
+    ;;A function is turned into an interactive command by using the special (interactive) expression at the beginning of the function definition (after the optional docstring).
+
+    ;;An interactive command is, as we have observed, a kind of Lisp function.
+    ;;That means that the command may take arguments.
+    ;;Passing arguments to a function from Lisp is easy; they simply get written down in the function call, as in (other-window -1).
+
+    ;;But what if the function is invoked as an interactive command? Where do the arguments come from then? Answering this question is the purpose of the interactive declaration.
+    ;;The argument to interactive describes how to obtain arguments for the command that contains it.
+    ;; - When the command takes no arguments, then i interactive has no arguments, as in our first draft of other-window-backward.
+    ;; - When the command does take arguments, then interactive takes one argument: a string of code letters, one code letter per argument being described.
+    ;;   - The code letter p used in this example means, "if there is a prefix argument, interpret it as a number, and if there is no prefix argument, interpret that as the number 1."
+    ;;     (interactive "p")
+
+
+    ;;(function arg ...)
+    (Lisp Expression))
+#+end_src
+
+** nil :lisp:
+*** It designates falsehood
+
+  In the Lisp structures that test a true/false condition—if, cond, while, and, or, and not-a value of nil means "false" and any other value means "true."
+
+  #+begin_src emacs-lisp
+
+    ;;Lisp's version of an if-then-else statement
+    (if n 
+        (other-window (- n)) 
+      (other-window -1))
+    ;;first n is evaluated
+    ;;   If the value of n is true (non-nil), then (other-window (- n)) is evaluated,
+    ;;   otherwise (other-window -1) is evaluated
+
+  #+end_src
+
+There is another =symbol, t= , that designates truth
+
+*** It is indistinguishable from the empty list
+
+Inside the Lisp interpreter, the symbol nil and the empty list ( ) are the same object. 
+
+If you call ~listp~, which tests whether its argument is a list, on the symbol nil, you'll get the result t, which means truth. listp == list predict
+
+Likewise, if you call ~symbolp~ , which tests whether its argument is a symbol, on the empty list, you'll get t again.
+
+*** It is its own value
+
+  When you evaluate the symbol nil, the result is nil.
+
+For this reason, unlike other symbols, nil doesn't need to be quoted when you want its name instead of its value, because its name is the same as its value.
+
+#+begin_src emacs-lisp
+
+  (setq x nil) ;;assign nil to variable x
+  ;;instead of (setq x 'nil)
+
+#+end_src
+
+There is a symbol, t, for designating truth. =Like nil, t is its own value and doesn't need to be quoted.=
+
+And also unlike nil, which is the only way to denote falsehood, all other Lisp values denote truth just like t does.
+  
+** Condensing the Code :lisp:
+
+#+begin_src emacs-lisp
+
+  (if n ;; if this. . . 
+      (other-window (- n)) ;;. . . then this 
+    (other-window -1)) ;;. . . else this
+
+#+end_src
+
+Lisp version of an if-then-else statement
+
+The first argument to if is a test.
+
+It is evaluated to see whether it yields truth (any expression except nil) or falsehood (nil).
+
+     If it's truth, the second argument-the "then" clause-is evaluated.
+
+     If it's falsehood, the third argument—the "else" clause (which is optional)—is evaluated.
+
+=The result of if is always the result of the last thing it evaluates.!!! 可以看成一个有返回值的if函数 ()是一个有返回值的表达式=
+
+Observe that other-window is called in both branches (the "then" and the "else" clauses) of the if.In this case, we can make the if expression more concise by factoring out the common subexpressions.
+
+#+begin_src emacs-lisp
+
+  ;;We can therefore rewrite this expression as:
+  (other-window (if n (- n) -1))
+
+#+end_src
+
+We can factor out common subexpressions again by observing that in both branches of the if, we're looking for the negative of something—either the negative of n or the negative of 1.
+
+#+begin_src emacs-lisp
+
+  (if n (- n) -1)
+  ;;can become
+  (- (if n n 1))
+
+#+end_src
+
+#+begin_src emacs-lisp
+
+  ;;In general,
+  (if test 
+    (a b) 
+   (a c))
+
+  ;;can be shortened to
+
+  (a (if test b c))
+
+#+end_src
+
+** Logical Expressions :lisp:
+
+An old Lisp programmers' trick can now be used to make this expression even more concise:
+
+#+begin_src emacs-lisp
+
+  (if n n 1)
+  ;;equal
+  (or n 1)
+
+#+end_src
+
+=The function or= works like the logical "or" in most languages:
+
+if all of its arguments are false, it returns falsehood, otherwise it returns truth.
+
+But Lisp's =or= has an extra bit of usefulness:
+
+=it evaluates each of its arguments in order until it finds one that's non-nil, then it returns that value. If it doesn't find one, it returns nil.=
+
+=!!! 可以看成一个有返回值的or函数 ()是一个有返回值的表达式=
+
+So the return value from or isn't merely false or true, =it's false or the first true value in the list.=
+
+#+begin_src emacs-lisp
+
+  ;;This means that generally speaking,
+  (if a a b)
+  ;;can be replaced by
+  (or a b)
+
+#+end_src
+
+In fact, it often should be written that way because if a is true, =then (if a a b) will evaluate it twice whereas (or a b) won't.= (On the other hand, if you specifically want a evaluated twice, then of course you should use if.) In fact,
+
+#+begin_src emacs-lisp
+
+  (if a a ;; if a is true, return a
+      (if b b ;; else if b is true, return b
+          ;;. . . 
+              (if y y z))) ;; else if y is true, return y, else z
+
+  ;;(which might look artificial here but is actually a pretty common pattern in actual programs) can be changed to the following form.
+
+  (or a b ... y z)
+
+#+end_src
+
+Similarly
+
+#+begin_src emacs-lisp
+
+  (if a
+      (if b
+          ;;. . .
+              (if y z)))
+
+  ;;(note that none of the ifs in this example has an "else" clause)!!! can also be written as
+
+  (and a b . . . y z)
+
+#+end_src
+
+because =and(function)= works by evaluating each of its arguments in order until it finds one that's nil.
+
+=If it finds one, it returns nil, and if it doesn't find one, it returns the value of the last argument.=
+
+#+begin_src emacs-lisp
+
+  ;;One other shorthand to watch out for: some programmers like to turn
+  (if (and a b . . . y) z)
+  into
+  (and a b . . . y z)
+  ;;but not me because, while they're functionally identical, the former has shades of meaning—"do z if a through y are all true"—that the latter doesn't, which could make it easier for a human reader to understand.
+#+end_src
+
+** defalias :lisp:
+
+use ~defalias~ to refer to any Lisp function by a different name
+
+#+begin_src emacs-lisp
+(defalias 'new_name 'old_name)
+#+end_src
+
+There. Now we'll never have to deal with those ambiguous names again (=although the original names remain in addition to the new aliases=)
+
+** Hooks :lisp:
+
+For Emacs to make the buffer read-only when I first visit the file, I have to somehow tell Emacs, "execute a certain piece of Lisp code whenever I visit a file." The action of visiting a file should trigger a function I write. This is where =hooks= come in.
+
+=A hook is an ordinary Lisp variable whose value is a list of functions that get executed under specific conditions.=
+
+For instance, the variable ~write-file-hooks~ is a list of functions that Emacs executes whenever a buffer is saved, and ~post-command-hook~ is a list of functions to run after every interactive command. The hook that interests us most for this example is ~find-file-hooks~, which Emacs runs every time a new file is visited. (There are many more hooks, some of which we'll be looking at later in the book. =To discover what hooks are available, try M-x apropos RET hook RET.=)
+
+The function ~add-hook~ adds a function to a hook variable.
+
+=Functions that appear in hook variables take no arguments.=
+
+** function with p or -p :lisp:
+
+It's a Boolean predicate, meaning it returns true or false.
+In Lisp, predicates traditionally have names ending in p or -p.
+** progn :lisp:
+
+A progn expression evaluates each of its subexpressions in order and returns the value of the last one.
+
+** Anonymous Functions                                              :lisp:
+
+When you use =defun= to define a function, you give it a name by which the function can be called from anywhere.
+
+But what if the function won't ever be called from anywhere else? What if it needs to be available in only one place?
+
+Arguably, read-only-if-symlink is needed only in the find-file-hooks list; =in fact, it might even be harmful for it to be called outside of find-file-hooks.=
+
+It's possible to define a function without giving it a name. Such functions are appropriately known as =anonymous functions.= They're created with the =Lisp keyword lambda=, which works exactly like =defun= except that the name of the function is left out:
+
+#+begin_src emacs-lisp
+
+  (lambda () 
+      (if (file-symlink-p buffer-file-name) 
+          (progn 
+            (setq buffer-read-only t) 
+            (message "File is a symlink"))))
+
+#+end_src
+
+The empty parentheses after the =lambda= are where the anonymous function's parameters would be listed. This function has no parameters. =An anonymous function definition can be used wherever you might use the name of a function:=
+
+#+begin_src emacs-lisp
+
+  (add-hook 'find-file-hooks 
+    '(lambda () 
+        (if (file-symlink-p buffer-file-name) 
+            (progn 
+            (setq buffer-read-only t)
+            (message "File is a symlink")))))
+
+#+end_src
+
+Now only find-file-hooks has access to the function; no other code is able to call it.
+
+=There's one reason not to use anonymous functions in hooks. If you ever wish to remove a function from a hook, you need to refer to it by name in a call to ~remove-hook~, like so:=
+
+#+begin_src emacs-lisp
+
+  (remove-hook 'find-file-hooks 'read-only-if-symlink)
+
+#+end_src
+
+This is much harder if the function is anonymous.
+
+** let :lisp:
+
+=Most languages have a way to create temporary variables (also called local variables) that exist only in a certain region of code, called the variable's scope.= In Lisp, temporary variables are created with let, whose syntax is
+
+#+begin_src emacs-lisp
+  (let ((var1 value1)
+        (var2 value2)
+        . . .
+        (varn valuen))
+    body1 body2 ... bodyn)
+#+end_src
+
+=This gives var1 the value value1 , var2 the value value2 , and so on; and var1 and var2 can be used only within the body1 expressions.=
+
+using temporary variables helps to avoid conflicts between regions of code that happen to use identical variable names.
+
+#+begin_src emacs-lisp
+
+  ;;So the expression
+  (let ((target (file-symlink-p buffer-file-name))) . . . )
+  ;;creates a temporary variable named target whose value is the result of calling
+  ;;function with p or -p
+  (file-symlink-p buffer-file-name) 
+
+#+end_src
+
+** yes-or-no-p :lisp:
+
+The function ~yes-or-no-p~ asks the user a yes or no question and returns true if the answer
+was "yes," false otherwise.
+
+** format :lisp:
+
+#+begin_src emacs-lisp
+(format "%s" buffer-file-name)
+#+end_src
+
+This constructs a string in a fashion similar to C's =printf=.
+
+The first argument is a pattern.
+
+Each %s gets replaced with the string representation of a subsequent argument.
+
+(The format function understands other ~%-sequences in the pattern string~. For instance, =%c prints a single character= if the corresponding argument is an ASCII value. See the online help for format—by typing ~M-? f format RET~ —for a complete list.)
