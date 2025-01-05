@@ -962,6 +962,119 @@ but this time as a plain file.
 I like to put these functions on =C-x t= for visit-target-instead (unused by default) and
 =C-x 1= for clobber-symlink (by default bound to count-linespage).
 
+** Advised Buffer Switching
+
+It frequently happens that I'm editing many similarly named files at the same time;
+
+When I want to switch from one buffer to the other, I use =C-x b=, switch-to-buffer, which prompts me for a buffer name.
+
+Since I like to keep my keystrokes to a minimum, I depend on =TAB= completion of the buffer name.
+
+Other times, such as in this example, pressing fo TAB will only expand as far as "foobar.'', requiring me to disambiguate between "foobar.c" and "foobar.h". Out of habit, though, I often press RET and accept the buffer name "foobar.".At this point, Emacs creates a brand-new empty buffer named foobar., which of course isn't what I wanted at all. Now I've got to kill the brand-new buffer (with =C-x k, kill-buffer=) and start all over again.
+
+What I'd like is for Emacs to catch my error before letting me commit it, by only accepting the names of existing buffers when it prompts me for one.
+
+=A piece of advice attached to a Lisp function is code that gets executed before or after the function each time the function is invoked.Before advice can affect the arguments before they're passed to the advised function. After advice can affect the return value that comes out of the advised function.=
+
+=Advice is a little bit like hook variables, but whereas Emacs defines only a few dozen hook variables for very particular circumstances, you get to choose which functions get "advised."=
+
+#+begin_src emacs-lisp
+
+  (defadvice switch-to-buffer (before existing-buffer activate compile) 
+      "When interactive, switch to existing buffers only." 
+      (interactive "b"))
+
+#+end_src
+
+The function defadvice creates a new piece of advice.
+
+Its first argument is the =(unquoted)= name of the existing function being advised in this case, ~switch-to-buffer~.
+
+=check The right way to bind keystroke to command=
+
+Next comes a specially formatted list.
+
+- =before—tells whether this is "before" or "after" advice. (Another type of advice, called
+"around," lets you embed a call to the advised function inside the advice code.)=
+
+- =Next comes the name of this piece of advice;= I named it existing-buffer. =The name can be used later if you want to remove or modify the advice.=
+- Next come some =keywords=: =activate means that this advice should be active as soon as it's defined (it's possible to define advice but leave it inactive); and compile means that the advice code should be "byte-compiled" for speed (see Chapter 5, Lisp Files)= 
+
+After the specially formatted list, a piece of advice has an =optional docstring.=
+
+The only thing in the body of this advice is its own interactive declaration, =which replaces the interactive declaration of switch-to-buffer.= Whereas switch-to-buffer accepts any string as the buffer-name argument, =the code letter b in an interactive declaration means "accept only names of existing buffers."=
+
+=By using the interactive declaration to make this change, we've managed to not affect any Lisp code that wants to call switch-to-buffer noninteractively.=
+
+Unfortunately, that's too restrictive. =It should still be possible to switch to nonexistent buffers, but only when some special indication is given that the restriction should be lifted—say, when a prefix argument is given. Thus, C-x b should refuse to switch to nonexistent buffers, but C-u
+C-x b should permit it.=
+
+#+begin_src emacs-lisp
+
+      (defadvice switch-to-buffer (before existing-buffer activate compile) 
+
+        "When interactive, switch to existing buffers only, unless given a prefix argument." 
+        (interactive 
+         (list (read-buffer "Switch to buffer:"
+                            (other-buffer)
+                            (null current-prefix-arg)))))
+
+#+end_src
+
+Once again, we're overriding the interactive declaration of switch-to-buffer using "before" advice.
+
+But this time, we're using interactive in a way we haven't seen before: =we're passing a list as its argument, rather than a string of code letters. When the argument to interactive is some expression other than a string, that expression is evaluated to get a list of arguments that should be passed to the function. So in this case we call list, which constructs a list out of its arguments,=  with the result of
+
+#+begin_src emacs-lisp
+
+  (read-buffer "Switch to buffer:" 
+    (other-buffer)
+     (null current-prefix-arg))
+
+#+end_src
+
+=The function read-buffer is the low-level Lisp function that prompts the user for a buffer name.=
+
+=It's "low-level" in the sense that all other functions that prompt for buffer names ultimately call read-buffer.=
+
+It's called with a prompt string and =two optional arguments:=
+- =a default buffer to switch to, and=
+- =a Boolean stating whether input should be restricted to existing buffers only.=
+
+#+begin_src emacs-lisp
+
+  ;;This tests whether current-prefix-arg is nil. If it is, the result will be t; if it's not, the result will be nil.
+  (null current-prefix-arg)
+
+#+end_src
+
+=The result of read-buffer is then passed to list=, and the resulting list (containing one element, the buffer name) is used as the argument list for switch-to-buffer. 
+
+With switch-to-buffer thus advised, Emacs won't let me respond to the prompt with a nonexistent buffer name unless I asked for that ability by pressing C-u first.
+
+For completeness, you should similarly advise the functions ~switch-to-buffer-other-window~ and ~switch-to-buffer-other-frame~.
+
+** Addendum: Raw Prefix Argument :lisp:
+
+The variable =current-prefix-arg= always contains the latest ="raw"= prefix argument, which is the same thing you get from
+
+#+begin_src emacs-lisp
+(interactive "P")
+#+end_src
+
+The function =prefix-numeric-value= can be applied to a ="raw"= prefix argument to get =its numeric value=, which is the same thing you get from
+
+#+begin_src emacs-lisp
+(interactive "p")
+#+end_src
+
+| If the User Types                            | Raw Value                        | Numeric Value     |
+|----------------------------------------------+----------------------------------+-------------------|
+| C-u followed by a (possibly negative) number | The number itself                | The number itself |
+| C-u - (with no following number)             | The symbol -                     | -1                |
+| C-u n times in a row                         | A list containing the number 4^n | 4^n itself        |
+| No prefix argument                           | nil                              | 1                 |
+
 * Lisp
 ** Lisp :lisp:
 
@@ -1457,3 +1570,70 @@ The first argument is a pattern.
 Each %s gets replaced with the string representation of a subsequent argument.
 
 (The format function understands other ~%-sequences in the pattern string~. For instance, =%c prints a single character= if the corresponding argument is an ASCII value. See the online help for format—by typing ~M-? f format RET~ —for a complete list.)
+
+** defadvice :lisp:
+
+=A piece of advice attached to a Lisp function is code that gets executed before or after the function each time the function is invoked.Before advice can affect the arguments before they're passed to the advised function. After advice can affect the return value that comes out of the advised function.=
+
+=Advice is a little bit like hook variables, but whereas Emacs defines only a few dozen hook variables for very particular circumstances, you get to choose which functions get "advised."=
+
+#+begin_src emacs-lisp
+
+  (defadvice switch-to-buffer (before existing-buffer activate compile) 
+      "When interactive, switch to existing buffers only." 
+      (interactive "b"))
+
+#+end_src
+
+The function defadvice creates a new piece of advice.
+
+Its first argument is the =(unquoted)= name of the existing function being advised in this case, ~switch-to-buffer~.
+
+=check The right way to bind keystroke to command=
+
+Next comes a specially formatted list.
+
+- =before—tells whether this is "before" or "after" advice. (Another type of advice, called
+"around," lets you embed a call to the advised function inside the advice code.)=
+
+- =Next comes the name of this piece of advice;= I named it existing-buffer. =The name can be used later if you want to remove or modify the advice.=
+- Next come some =keywords=: =activate means that this advice should be active as soon as it's defined (it's possible to define advice but leave it inactive); and compile means that the advice code should be "byte-compiled" for speed (see Chapter 5, Lisp Files)= 
+
+After the specially formatted list, a piece of advice has an =optional docstring.=
+
+The only thing in the body of this advice is its own interactive declaration, =which replaces the interactive declaration of switch-to-buffer.= Whereas switch-to-buffer accepts any string as the buffer-name argument, =the code letter b in an interactive declaration means "accept only names of existing buffers."=
+
+=By using the interactive declaration to make this change, we've managed to not affect any Lisp code that wants to call switch-to-buffer noninteractively.=
+** Addendum: Raw Prefix Argument :lisp:
+
+The variable =current-prefix-arg= always contains the latest ="raw"= prefix argument, which is the same thing you get from
+
+#+begin_src emacs-lisp
+(interactive "P")
+#+end_src
+
+The function =prefix-numeric-value= can be applied to a ="raw"= prefix argument to get =its numeric value=, which is the same thing you get from
+
+#+begin_src emacs-lisp
+(interactive "p")
+#+end_src
+
+| If the User Types                            | Raw Value                        | Numeric Value     |
+|----------------------------------------------+----------------------------------+-------------------|
+| C-u followed by a (possibly negative) number | The number itself                | The number itself |
+| C-u - (with no following number)             | The symbol -                     | -1                |
+| C-u n times in a row                         | A list containing the number 4^n | 4^n itself        |
+| No prefix argument                           | nil                              | 1                 |
+
+** functions
+ | null |
+
+#+begin_src emacs-lisp
+
+  ;;This tests whether current-prefix-arg is nil. If it is, the result will be t; if it's not, the result will be nil.
+  (null current-prefix-arg)
+
+#+end_src
+
+| switch-to-buffer |
+| read-buffer      |
