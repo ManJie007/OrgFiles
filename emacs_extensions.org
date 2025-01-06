@@ -1075,7 +1075,86 @@ The function =prefix-numeric-value= can be applied to a ="raw"= prefix argument 
 | C-u n times in a row                         | A list containing the number 4^n | 4^n itself        |
 | No prefix argument                           | nil                              | 1                 |
 
+* Cooperating Commands
+
+This chapter shows how to get different commands to work together by saving information in one command and retrieving it in another.
+
+The simplest way to share information is to create a variable and store a value in it.
+
+We'll combine these techniques with information about buffers and windows to write a set of functions that allow you to "undo" scrolling
+
+we could write another function, ~unscroll~, which undoes the effects of the latest scroll.
+Getting lost should therefore cause no more disruption to your mental context than it takes to remember the keybinding for ~unscroll~.
+
+Actually, that's not quite good enough. If you press several C-vs in a row, =one call to unscroll should undo them all, not only the last one. This means that only the first C-v in a sequence should memorize the starting location.= How can we arrange for this to happen? 
+
+=Emacs maintains a variable for this purpose called last-command. This variable is the first mechanism we'll use to communicate information from one command to a later one.=
+
+how can we attach this extra code to the scroll-up command? =The advice facility is ideal for this purpose. Recall that a piece of advice can run before or after the advised function.=
+=check defadvice=
+
+In this case, we'll need before advice, because it's only before scroll-up runs that we know the starting location.
+
+*** Declaring Variables :lisp:
+
+ ~defvar~ to declare the global variable.
+
+ #+begin_src emacs-lisp
+   ;;setting up a global variable, unscroll-to
+   ;;which will hold the "undo" information, which is simply the position in the buffer to which unscroll should move the cursor.
+    (defvar unscroll-to nil 
+        "Text position for next call to 'unscroll'.")
+ #+end_src
+
+=Global variables don't need to be declared. But there are some advantages to declaring variables with defvar:=
+
+- =Using defvar allows a docstring to be associated with the variable, in the same way that defun allows a docstring to be associated with a function.=
+
+- =A default value for the variable can be given. In this case, the default value for
+unscroll-to is nil.=
+
+Instead of unconditionally assigning the value to the variable like =setq= does, =defvar= assigns the value only if the variable does not yet have any value.
+
+- A variable declaration using =defvar can be found by the various tag-related commands.= Tags are a way to quickly find variable and function definitions in a programming project.
+
+Emacs's tag facilities, such as the =find-tag= command, can find anything created with the
+def. . . functions (=defun, defalias, defmacro, defvar, defsubst, defconst, defadvice=).
+
+- When you byte-compile the code (see Chapter 5, Lisp Files), the byte-compiler emits a warning for each variable it encounters that hasn't been declared with defvar.
+*** Saving and Restoring Point
+
+Let's define the value of =unscroll-to= to be the position in the text where the cursor was before the latest sequence of =scroll-ups=.
+
+The position of the cursor in the text is the number of characters from the beginning of the buffer (counting from 1) and is called point or the point.
+
+The value of point at any moment is given by the function ~point~.
+
+#+begin_src emacs-lisp
+
+  (defadvice scroll-up (before remember-for-unscroll activate compile) 
+      "Remember where we started from, for 'unscroll'."
+        ;; and the literal symbol scroll-up
+        ;; check The right way to bind keystroke to command
+        ;; The result of the call to eq is passed to not, which inverts the truth value of its argument.
+        (if (not (eq last-command 'scroll-up)) 
+            (setq unscroll-to (point))))
+
+  (defun unscroll () 
+    "Jump to location specified by 'unscroll-to'."*
+    (interactive) 
+    (goto-char unscroll-to))
+
+#+end_src
+
+*** Window Appearance
+
+we'd really like to restore not only the location of the cursor, but also the appearance of the window with respect to which lines are visible where.
+
+Emacs provides several functions describing what's visible in a window, such as ~window-edges, window-height, and current-window-configuration~.
+
 * Lisp
+
+=!!! 可以看成一个有返回值的函数 ()是一个有返回值的表达式=
 ** Lisp :lisp:
 
 the language of the .emacs file.
@@ -1637,3 +1716,33 @@ The function =prefix-numeric-value= can be applied to a ="raw"= prefix argument 
 
 | switch-to-buffer |
 | read-buffer      |
+| not              |
+| point            |
+
+** Declaring Variables :lisp:
+
+ ~defvar~ to declare the global variable.
+
+ #+begin_src emacs-lisp
+   ;;setting up a global variable, unscroll-to
+   ;;which will hold the "undo" information, which is simply the position in the buffer to which unscroll should move the cursor.
+    (defvar unscroll-to nil 
+        "Text position for next call to 'unscroll'.")
+ #+end_src
+
+=Global variables don't need to be declared. But there are some advantages to declaring variables with defvar:=
+
+- =Using defvar allows a docstring to be associated with the variable, in the same way that defun allows a docstring to be associated with a function.=
+
+- =A default value for the variable can be given. In this case, the default value for
+unscroll-to is nil.=
+
+Instead of unconditionally assigning the value to the variable like =setq= does, =defvar= assigns the value only if the variable does not yet have any value.
+
+- A variable declaration using =defvar can be found by the various tag-related commands.= Tags are a way to quickly find variable and function definitions in a programming project.
+
+Emacs's tag facilities, such as the =find-tag= command, can find anything created with the
+def. . . functions (=defun, defalias, defmacro, defvar, defsubst, defconst, defadvice=).
+
+- When you byte-compile the code (see Chapter 5, Lisp Files), the byte-compiler emits a warning for each variable it encounters that hasn't been declared with defvar.
+  
