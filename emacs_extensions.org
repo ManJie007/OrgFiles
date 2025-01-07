@@ -1152,6 +1152,206 @@ we'd really like to restore not only the location of the cursor, but also the ap
 
 Emacs provides several functions describing what's visible in a window, such as ~window-edges, window-height, and current-window-configuration~.
 
+~window-start~
+
+for a given window, yields the buffer position that is the first visible character (i.e., the upper-left corner) in the window.
+
+#+begin_src emacs-lisp
+      (defvar unscroll-point nil 
+      "Cursor position for next call to 'unscroll'.")
+
+      (defvar unscroll-window-start nil 
+     "Window start for next call to 'unscroll'.")
+
+     (defadvice scroll-up (before remember-for-unscroll activate compile) 
+       "Remember where we started from, for 'unscroll'." 
+       (if (not (eq last-command 'scroll-up)) 
+           (progn 
+           (setq unscroll-point (point)) 
+           (setq unscroll-window-start (window-start))))) 
+
+    (defun unscroll () 
+       "Revert to 'unscroll-point' and 'unscroll-window-start'." 
+       (interactive) 
+       (goto-char unscroll-point) 
+       ;; The first argument is the window whose start position is being set. If nil is passed as the first argument (as in this example), set-window-start defaults to the currently selected window.
+       ;;. (Window objects for passing to set-window-start can be obtained from such functions as get-buffer-window and previous-window.)
+       (set-window-start nil unscroll-window-start))
+
+
+    ;;There's one more piece of information we might like to save for unscrolling purposes, and that's the window's hscroll,  the number of columns by which the window is scrolled horizontally, normally zero.
+    (defvar unscroll-hscroll nil 
+   "Hscroll for next call to 'unscroll' .")
+
+   (defadvice scroll-up (before remember-for-unscroll activate compile) 
+     "Remember where we started from, for 'unscroll'.'"
+     (if (not (eq last-command 'scroll-up)) 
+         ;; a single setq call with multiple variable-value pairs. For conciseness, setq can set any number of variables.
+         (setq unscroll-point (point) 
+         unscroll-window-start (window-start) 
+         unscroll-hscroll (window-hscroll)))) 
+
+  (defun unscroll () 
+     "Revert to 'unscroll-point' and 'unscroll-window-start'." 
+     (interactive) 
+     (goto-char unscroll-point) 
+     (set-window-start nil unscroll-window-start) 
+     (set-window-hscroll nil unscroll-hscroll))
+#+end_src
+
+*** Detecting Errors :lisp:
+
+To keep the user from being baffled by this cryptic error message, it's a good idea to precede the call to goto-char with a simple check and a more informative error message:
+
+#+begin_src emacs-lisp
+
+  (if (not unscroll-point) ;i.e., ifunscroll-point is nil 
+    (error "Cannot unscroll yet"))
+
+#+end_src
+
+When =error= is invoked, =execution of unscroll aborts= and the message "Cannot unscroll yet" is displayed.
+
+*** Generalizing the Solution
+
+It would be nice if we could generalize unscroll to undo scrolling in any direction.
+
+The obvious way to generalize ~unscroll~ is to =advise= ~scroll-down~ in the same way that we advised scroll-up:
+
+#+begin_src emacs-lisp
+
+  (defadvice scroll-down (before remember-for-unscroll activate compile) 
+   "Remember where we started from, for 'unscroll'." 
+      (if (not (eq last-command 'scroll-down)) 
+          (setq unscroll-point (point) 
+          unscroll-window-start (window-start) 
+          unscroll-hscroll (window-hscroll))))
+
+#+end_src
+
+=(Note that two functions, such as scroll-up and scroll-down, may have identically named pieces of advice, such as remember-for-unscroll, without conflict.)=
+
+In other words, suppose you mistakenly press C-v C-v M-v. Should unscroll revert to the position before the M-v, or should it revert all the way back to the position before the first C-v?
+
+I prefer the latter behavior. But this means that in the advice for scroll-up, where we now test whether the last command was scroll-up, we must now test whether it was either scroll-up or scroll-down, and do the same in scroll-down.
+
+=check Logical Expression=
+
+#+begin_src emacs-lisp
+(defadvice scroll-up (before remember-for-unscroll activate compile) 
+    "Remember where we started from, for 'unscroll'." 
+    (if (not (or (eq last-command 'scroll-up) (eq last-command 'scroll-down))) 
+            (setq unscroll-point (point) 
+            unscroll-window-start (window-start) 
+            unscroll-hscroll (window-hscroll)))) 
+ 
+(defadvice scroll-down (before remember-for-unscroll activate compile) 
+    "Remember where we started from, for 'unscroll'.'"
+    (if (not (or (eq last-command 'scroll-up) (eq last-command 'scroll-down))) 
+        (setq unscroll-point (point) 
+        unscroll-window-start (window-start) 
+        unscroll-hscroll (window-hscroll))))
+#+end_src
+
+Suppose somewhere down the line, you come up with more commands you'd like to advise this way; let's say =scroll-left= and =scroll-right=:
+
+#+begin_src emacs-lisp
+    (defadvice scroll-up (before remember-for-unscroll activate compile) 
+     "Remember where we started from, for 'unscroll'." 
+     (if (not (or (eq last-command 'scroll-up) 
+                   (eq last-command 'scroll-down) 
+                   (eq last-command 'scroll-left) ;new 
+                   (eq last-command 'scroll-right))) ; new 
+            (setq unscroll-point (point) 
+                  unscroll-window-start (window-start) 
+                  unscroll-hscroll (window-hscroll)))) 
+ 
+     (defadvice scroll-down (before remember-for-unscroll activate compile) 
+     "Remember where we started from, for 'unscroll'." 
+     (if (not (or (eq last-command 'scroll-up) 
+                  (eq last-command 'scroll-down) 
+                  (eq last-command 'scroll-left) ;neu 
+                  (eq last-command 'scroll-right))) ;neuw 
+            (setq unscroll-point (point) 
+                unscroll-window-start (window-start) 
+                unscroll-hscroll (window-hscroll)))) 
+ 
+     (defadvice scroll-left (before remember-for-unscroll activate compile) 
+        "Remember where we started from, for 'unscroll'." 
+        (if (not (or (eq last-command 'scroll-up)
+                    (eq last-command 'scroll-down)
+                    (eq last-command 'scroll-left) 
+                    (eq last-command scroll-right))) 
+            (setq unscroll-point (point) 
+                unscroll-window-start (window-start) 
+                unscroll-hscroll (window-hscroll)))) 
+ 
+   (defadvice scroll-right (before remember-for-unscroll activate compile) 
+        "Remember where we started from, for 'unscroll'." 
+        (if (not (or (eq last-command 'scroll-up) 
+                     (eq last-command scroll-down) 
+                     (eq last-command scroll-left) 
+                     (eq last-command 'scroll-right))) 
+            (setq unscroll-point (point) 
+                    unscroll-window-start (window-start) 
+                    unscroll-hscroll (window-hscroll))))
+#+end_src
+
+Not only is this very repetitive and error-prone, but for each new command that we wish to make "unscrollable," =the advice for each existing unscrollable command must have its last-command test modified to include the new one.=
+
+*** Using this-command
+
+Two things can be done to improve this situation.
+- First, since the advice is identical in each case, it can be factored out into a shared function:
+
+#+begin_src emacs-lisp
+
+(defun unscroll-maybe-remember () 
+ (if (not (or (eq last-command 'scroll-up) 
+                (eq last-command scroll-down) 
+                (eq last-command scroll-left) 
+                (eq last-command scroll-right))) 
+        (setq unscroll-point (point) 
+            unscroll-window-start (window-start) 
+            unscroll-hscroll (window-hscroll)))) 
+ 
+ (defadvice scroll-up (before remember-for-unscroll activate compile) 
+    "Remember where we started from, for 'unscroll'." 
+    (unscroll-maybe-remember)) 
+ 
+ (defadvice scroll-down (before remember-for-unscroll activate compile) 
+    "Remember where we started from, for 'unscroll'." 
+    (unscroll-maybe-remember)) 
+ 
+ (defadvice scroll-left (before remember-for-unscroll activate compile) 
+    "Remember where we started from, for 'unscroll'." 
+    (unscroll-maybe-remember)) 
+ 
+ (defadvice scroll-right (before remember-for-unscroll activate compile) 
+    "Remember where we started from, for 'unscroll'." 
+    (unscroll-maybe-remember))
+
+#+end_src
+
+- Second, instead of having to test for n possible values of last-command, all meaning "the last command was unscrollable," it would be nice if there were a single such value, and if all the unscrollable commands could somehow set last-command to that value.
+
+  =Enter this-command, the variable that contains the name of the current command invoked by the user. In fact, the way last-command gets set is this: while Emacs is executing a command, this-command contains the name of the command; then when it is finished, Emacs puts the value of this-command into last-command. While a command is executing, it can change the value of this-command. When the next command runs, the value will be available in last-command.=
+
+  #+begin_src emacs-lisp
+    (defun unscroll-maybe-remember () 
+        ;;choose a symbol to represent all unscrollable commands: say, unscrollable.
+        (setq this-command 'unscrollable) 
+        (if (not (eq last-command 'unscrollable)) 
+                (setq unscroll-point (point) 
+                unscroll-window-start (window-start) 
+                unscroll-hscroll (window-hscroll))))
+  #+end_src
+  
+Any command that calls unscroll-maybe-remember now causes this command to contain unscrollable. And instead of checking last-command for four different values (more if we add new unscrollable commands), we only need to check for one value (even if we define new unscrollable commands).
+
+*** Symbol Properties :lisp:
+
+  
 * Lisp
 
 =!!! 可以看成一个有返回值的函数 ()是一个有返回值的表达式=
@@ -1683,6 +1883,24 @@ After the specially formatted list, a piece of advice has an =optional docstring
 The only thing in the body of this advice is its own interactive declaration, =which replaces the interactive declaration of switch-to-buffer.= Whereas switch-to-buffer accepts any string as the buffer-name argument, =the code letter b in an interactive declaration means "accept only names of existing buffers."=
 
 =By using the interactive declaration to make this change, we've managed to not affect any Lisp code that wants to call switch-to-buffer noninteractively.=
+
+It would be nice if we could generalize unscroll to undo scrolling in any direction.
+
+The obvious way to generalize ~unscroll~ is to =advise= ~scroll-down~ in the same way that we advised scroll-up:
+
+#+begin_src emacs-lisp
+
+  (defadvice scroll-down (before remember-for-unscroll activate compile) 
+   "Remember where we started from, for 'unscroll'." 
+      (if (not (eq last-command 'scroll-down)) 
+          (setq unscroll-point (point) 
+          unscroll-window-start (window-start) 
+          unscroll-hscroll (window-hscroll))))
+
+#+end_src
+
+=(Note that two functions, such as scroll-up and scroll-down, may have identically named pieces of advice, such as remember-for-unscroll, without conflict.)=
+
 ** Addendum: Raw Prefix Argument :lisp:
 
 The variable =current-prefix-arg= always contains the latest ="raw"= prefix argument, which is the same thing you get from
@@ -1746,3 +1964,15 @@ def. . . functions (=defun, defalias, defmacro, defvar, defsubst, defconst, defa
 
 - When you byte-compile the code (see Chapter 5, Lisp Files), the byte-compiler emits a warning for each variable it encounters that hasn't been declared with defvar.
   
+** Detecting Errors :lisp:
+
+To keep the user from being baffled by this cryptic error message, it's a good idea to precede the call to goto-char with a simple check and a more informative error message:
+
+#+begin_src emacs-lisp
+
+  (if (not unscroll-point) ;i.e., ifunscroll-point is nil 
+    (error "Cannot unscroll yet"))
+
+#+end_src
+
+When =error= is invoked, =execution of unscroll aborts= and the message "Cannot unscroll yet" is displayed.
