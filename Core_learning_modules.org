@@ -1,0 +1,2050 @@
+#+title: Core_learning_modules
+#+author: JIE MAN
+* Structuring content with HTML
+** Basic HTML syntax
+
+[[https://developer.mozilla.org/en-US/docs/Glossary/HTML][HTML]] HyperText Markup Language
+
+tells web browsers how to structure the web pages
+
+consists of a series of [[https://developer.mozilla.org/en-US/docs/Glossary/Element][elements]]
+
+index.html -- contain a website's home page content.
+              It's also common to see subfolders with their own index.html
+
+=Tags in HTML are not case-sensitive.=
+
+[[file:./pictures/html/1.png]]
+
+italic text ~<em>This is my text.</em>~
+*** Nesting elements
+  ~<p>My cat is <strong>very</strong> grumpy.</p>~
+*** Void elements
+  ~<img src="https://raw.githubusercontent.com/mdn/beginner-html-site/gh-pages/images/firefox-icon.png" alt="Firefox icon" />~
+*** Attributes
+
+[[file:./pictures/html/2.png]]
+
+=class= attribute is an =identifying name used to target the element with style information.=
+
+~<img src="https://raw.githubusercontent.com/mdn/beginner-html-site/gh-pages/images/firefox-icon.png" alt="The Firefox icon" width="300" height="300" />~
+
+=Boolean attributes=
+  attributes written without values.
+  =or with any value=, even like "false", the boolean attribute is always =set to true.=
+  if the attribute is =not written in an HTML tag=, the attribute is =set to false.=
+
+  ~<input type="text" disabled="disabled" />~
+  #+begin_src html
+    <!-- using the disabled attribute prevents the end user from entering text into the input box -->
+    <input type="text" disabled />
+
+    <!-- text input is allowed, as it doesn't contain the disabled attribute -->
+    <input type="text" />
+  #+end_src
+
+=Omitting quotes around attribute values=
+   This is permitted in certain circumstances, but it can also break your markup in other circumstances.
+
+   #+begin_src html
+     <a href=https://www.mozilla.org/>favorite website</a> <!--OK-->
+     <a href=https://www.mozilla.org/ title=The Mozilla homepage>favorite website</a> <!-- Error -->
+     <!-- mistaking the title attribute for three attributes: a title attribute with the value The, and two Boolean attributes, Mozilla and homepage.  -->
+   #+end_src
+
+=Single or double quotes?=
+   #+begin_src html
+    <a href='https://www.example.com'>A link to my example.</a>
+
+    <a href="https://www.example.com">A link to my example.</a>
+
+    <a href="https://www.example.com" title="Isn't this fun?">
+      A link to my example.
+    </a>
+
+    <a href="https://www.example.com" title="An &quot;interesting&quot; reference">A link to my example.</a>
+   #+end_src
+
+  To use quote marks inside other quote marks of the same type (single quote or double quote), use [[https://developer.mozilla.org/en-US/docs/Glossary/Character_reference][character references]].
+*** Anatomy of an HTML document
+
+#+begin_src html
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <title>My test page</title>
+  </head>
+  <body>
+    <p>This is my page</p>
+  </body>
+</html>
+#+end_src
+
+~<!doctype html>~ : The doctype.
+  When HTML was young (1991-1992), doctypes were meant to act as links to a set of rules that the HTML page had to follow to be considered good HTML.
+  #+begin_src html
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+  #+end_src
+
+~<html></html>~ : The <html> element.
+  root element.
+
+~<head></head>~ : The <head> element.
+  This includes keywords and a page description that would appear in search results, CSS to style content, character set declarations, and more.
+
+~<meta charset="utf-8">~ : The <meta> element.
+  This element represents metadata that cannot be represented by other HTML meta-related elements, like =<base>, <link>, <script>, <style> or <title>.=
+
+~<title></title>~ : The <title> element.
+  which is the title that appears in the browser tab the page is loaded in.
+
+~<body></body>~ : The <body> element.
+  This contains all the content that displays on the page, including text, images, videos, games, playable audio tracks, or whatever else.
+
+*** Whitespace in HTML
+
+=No matter how much whitespace you use inside HTML element content, the HTML parser reduces each sequence of whitespace to a single space when rendering the code.=
+
+#+begin_src html
+<p id="noWhitespace">Dogs are silly.</p>
+
+<p id="whitespace">Dogs
+    are
+        silly.</p>
+#+end_src
+
+Dogs are silly.
+
+Dogs are silly.
+
+Accessing the innerHTML of elements from JavaScript will keep all the whitespace intact.
+
+#+begin_src js
+const noWhitespace = document.getElementById("noWhitespace").innerHTML;
+console.log(noWhitespace);
+// "Dogs are silly."
+
+const whitespace = document.getElementById("whitespace").innerHTML;
+console.log(whitespace);
+// "Dogs
+//    are
+//        silly."
+#+end_src
+
+*** Character references: including special characters in HTML
+
+[[https://developer.mozilla.org/en-US/docs/Glossary/Character_reference][character references]]
+
+*** HTML comments
+
+<!-- -->
+** What's in the head? Web page metadata
+
+=<head></head>= contains metadata information such as the page <title>, links to CSS, links to custom favicons, and other metadata.
+*** Adding a title
+
+<title></title>
+
+used in bookmarking
+*** Metadata: the <meta> element
+  =Metadata is data that describes data=
+
+  Specifying your document's character encoding
+    ~<meta charset="utf-8" />~
+
+  Adding an author and description
+    #+begin_src html
+<meta name="author" content="Chris Mills" />
+<meta
+  name="description"
+  content="The MDN Web Docs Learning Area aims to provide
+complete beginners to the Web with all they need to know to get
+started with developing websites and applications." />
+    #+end_src
+
+    Some content management systems have facilities to automatically extract page author information and make it available for such purposes.
+
+    Specifying a description that includes keywords relating to the content of your page is useful as it has the potential to make your page appear higher in relevant searches performed in search engines (such activities are termed Search Engine Optimization, or SEO.)
+
+  Other types of metadata
+    For example, [[https://ogp.me/][Open Graph]] Data is a metadata protocol that Facebook invented to provide richer metadata for websites.
+
+    #+begin_src html
+<meta
+  property="og:image"
+  content="https://developer.mozilla.org/mdn-social-share.png" />
+<meta
+  property="og:description"
+  content="The Mozilla Developer Network (MDN) provides
+information about Open Web technologies including HTML, CSS, and APIs for both websites
+and HTML Apps." />
+<meta property="og:title" content="Mozilla Developer Network" />
+    #+end_src
+*** Adding custom icons to your site
+
+a 16-pixel square icon used in multiple places.
+
+favicons displayed in the browser tab containing each open page, and next to bookmarked pages in the bookmarks panel.
+
+=.ico= format (most also support favicons in more common formats like =.gif= or =.png)=
+
+~<link rel="icon" href="favicon.ico" type="image/x-icon" />~ into your HTML's <head> block
+
+You may also need different icons for different contexts.
+
+#+begin_src html
+  <link rel="icon" href="/favicon-48x48.[some hex hash].png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.[some hex hash].png" />
+
+<!-- iPad Pro with high-resolution Retina display: -->
+<link
+  rel="apple-touch-icon"
+  sizes="167x167"
+  href="/apple-touch-icon-167x167.png" />
+<!-- 3x resolution iPhone: -->
+<link
+  rel="apple-touch-icon"
+  sizes="180x180"
+  href="/apple-touch-icon-180x180.png" />
+<!-- non-Retina iPad, iPad mini, etc.: -->
+<link
+  rel="apple-touch-icon"
+  sizes="152x152"
+  href="/apple-touch-icon-152x152.png" />
+<!-- 2x resolution iPhone and other devices: -->
+<link rel="apple-touch-icon" href="/apple-touch-icon-120x120.png" />
+<!-- basic favicon -->
+<link rel="icon" href="/favicon.ico" />
+#+end_src
+*** Applying CSS and JavaScript to HTML
+
+[[https://developer.mozilla.org/en-US/docs/Glossary/CSS][CSS]] to make them look cool [[https://developer.mozilla.org/en-US/docs/Web/HTML/Element/link][<link>]]
+[[https://developer.mozilla.org/en-US/docs/Glossary/JavaScript][JavaScript]] to power interactive functionality [[https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script][<script>]]
+
+~<link rel="stylesheet" href="my-css-file.css" />~
+
+~<script src="my-js-file.js" defer></script>~
+
+=defer= instructs the browser to load the JavaScript after the page has finished parsing the HTML.
+  The defer attribute is useful as it guarantees the HTML is all loaded before the JavaScript runs so that you don't get errors due to JavaScript trying to access an HTML element that doesn't exist on the page yet.
+  [[https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Scripting/What_is_JavaScript#script_loading_strategies][several ways]]:
+    1.the script element is placed at the bottom of the body of the document
+    2.the script element is placed in the head of the document
+      using <script type="module">, the code is treated as a [[https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules][module]] and the browser waits for all HTML to be processed before executing JavaScript modules.
+    3.=defer= (or if you don't need the HTML to be ready, the =async=) =attribute= on the =<script> element.=
+    4.wrap the code in a [[https://developer.mozilla.org/en-US/docs/Web/API/Document/DOMContentLoaded_event][DOMContentLoaded]] event listener.
+*** Setting the primary language of the document
+
+#+begin_src html
+<html lang="en-US">
+  …
+</html>
+#+end_src
+
+Your HTML document will be indexed more effectively by search engines if its language is set
+
+You can also set subsections of your document to be recognized as different languages.
+
+#+begin_src html
+<p>Japanese example: <span lang="ja">ご飯が熱い。</span>.</p>
+#+end_src
+** Headings and paragraphs
+
+paragraph <p>
+heading <h1>/<h2>.../<h6>
+
+Implementing structural hierarchy
+#+begin_src html
+<h1>The Crushing Bore</h1>
+
+<p>By Chris Mills</p>
+
+<h2>Chapter 1: The dark night</h2>
+
+<p>
+  It was a dark night. Somewhere, an owl hooted. The rain lashed down on the…
+</p>
+
+<h2>Chapter 2: The eternal silence</h2>
+
+<p>Our protagonist could not so much as a whisper out of the shadowy figure…</p>
+
+<h3>The specter speaks</h3>
+
+<p>
+  Several more hours had passed, when all of a sudden the specter sat bolt
+  upright and exclaimed, "Please have mercy on my soul!"
+</p>
+#+end_src
+
+Search engines indexing your page consider the contents of headings as important keywords for influencing the page's search rankings.
+
+Without headings, your page will perform poorly in terms of [[https://developer.mozilla.org/en-US/docs/Glossary/SEO][SEO]] (Search Engine Optimization).
+** Emphasis and importance
+
+Emphasis
+  italic =<em>=
+    To do that, you'd use a =<span>= element and some CSS, or perhaps an =<i>= element (see below).
+  bold =<strong>=
+    To do that, you'd use a =<span>= element and some CSS, or perhaps a =<b>= element (see below).
+  underlined =<u>=
+
+Elements like this, which only affect presentation and not semantics, are known as presentational elements and =should no longer be used= because, as we've seen before, semantics is so important to accessibility, SEO, etc.
+这些标签最初是为了让网页实现视觉上的效果（粗体、斜体、下划线）而出现的，
+在当时，CSS 还不成熟或根本不被浏览器支持，所以只能用这些标签实现样式。
+但这些标签的问题在于：
+它们 只改变了外观，没有任何语义信息。
+它们被称为 presentational elements（表现型元素），即：
+  只告诉浏览器“怎么显示”，但没告诉“这段文字是什么意义”。
+所以现在不推荐用它们，原因是：
+对无障碍（accessibility）不友好：
+  屏幕阅读器无法知道这些文字为什么要强调。
+对 SEO（搜索引擎优化）无帮助：
+  搜索引擎也看不懂“这些文字为什么要粗体/斜体”。
+与结构化语义分离的原则相悖：
+  我们希望 HTML 表达语义、CSS 负责样式。
+
+It's only appropriate to use <b>, <i>, or <u> to convey a meaning traditionally conveyed with bold, italics, or underline when there isn't a more suitable element;
+
+Consider whether =<strong>, <em>, <mark>, or <span>= might be more appropriate.
+
+#+begin_src html
+<!-- scientific names -->
+<p>
+  The Ruby-throated Hummingbird (<i>Archilochus colubris</i>) is the most common
+  hummingbird in Eastern North America.
+</p>
+
+<!-- foreign words -->
+<p>
+  The menu was a sea of exotic words like <i lang="uk-latn">vatrushka</i>,
+  <i lang="id">nasi goreng</i> and <i lang="fr">soupe à l'oignon</i>.
+</p>
+
+<!-- a known misspelling -->
+<p>Someday I'll learn how to <u class="spelling-error">spel</u> better.</p>
+
+<!-- term being defined when used in a definition -->
+<dl>
+  <dt>Semantic HTML</dt>
+  <dd>
+    Use the elements based on their <b>semantic</b> meaning, not their
+    appearance.
+  </dd>
+</dl>
+#+end_src
+** Lists
+
+Unordered lists
+  <ul><li></li></ul>
+
+#+begin_src html
+<ul>
+  <li>milk</li>
+  <li>eggs</li>
+  <li>bread</li>
+  <li>hummus</li>
+</ul>
+#+end_src
+
+Ordered
+  <ol><li></li><ol>
+
+#+begin_src html
+<ol>
+  <li>Drive to the end of the road</li>
+  <li>Turn right</li>
+  <li>Go straight across the first two roundabouts</li>
+  <li>Turn left at the third roundabout</li>
+  <li>The school is on your right, 300 meters up the road</li>
+</ol>
+#+end_src
+
+=Nesting lists=
+
+#+begin_src html
+<ol>
+  <li>Remove the skin from the garlic, and chop coarsely.</li>
+  <li>Remove all the seeds and stalk from the pepper, and chop coarsely.</li>
+  <li>Add all the ingredients into a food processor.</li>
+  <li>
+    Process all the ingredients into a paste.
+    <ul>
+      <li>
+        If you want a coarse "chunky" hummus, process it for a short time.
+      </li>
+      <li>If you want a smooth hummus, process it for a longer time.</li>
+    </ul>
+  </li>
+</ol>
+#+end_src
+
+=Description lists=
+  =mark up a set of items and their associated descriptions=
+
+  <dl> list types
+  <dt> description term
+  <dd> description definition
+#+begin_src html
+<dl>
+  <dt>soliloquy</dt>
+  <dd>
+    In drama, where a character speaks to themselves, representing their inner
+    thoughts or feelings and in the process relaying them to the audience (but
+    not to other characters.)
+  </dd>
+  <dt>monologue</dt>
+  <dd>
+    In drama, where a character speaks their thoughts out loud to share them
+    with the audience and any other characters present.
+  </dd>
+  <dt>aside</dt>
+  <dd>
+    In drama, where a character shares a comment only with the audience for
+    humorous or dramatic effect. This is usually a feeling, thought, or piece of
+    additional background information.
+  </dd>
+</dl>
+#+end_src
+
+=Multiple descriptions for one term=
+#+begin_src html
+<dl>
+  <dt>aside</dt>
+  <dd>
+    In drama, where a character shares a comment only with the audience for
+    humorous or dramatic effect. This is usually a feeling, thought, or piece of
+    additional background information.
+  </dd>
+  <dd>
+    In writing, a section of content that is related to the current topic, but
+    doesn't fit directly into the main flow of content so is presented nearby
+    (often in a box off to the side.)
+  </dd>
+</dl>
+#+end_src
+** Structuring documents
+
+[[file:./pictures/html/3.png]]
+
+header ~<header>~
+navigation bar ~<nav>~
+main content ~<main>~ , with various content subsections represented by =<article>, <section>, and <div> elements.=
+  <main> 页面的核心主内容，页面中唯一，放在 <body> 下
+  <article> 自成一体、可以独立理解的内容块（如博文、帖子）
+  <section> 功能性或主题性的内容区域，通常配合标题使用
+sidebar ~<aside>~; often placed inside ~<main>~
+footer ~<footer>~
+  The footer is also sometimes used for =SEO= purposes, by providing links for quick access to popular content.
+
+#+begin_src html
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+
+    <title>My page title</title>
+    <link
+      href="https://fonts.googleapis.com/css?family=Open+Sans+Condensed:300|Sonsie+One"
+      rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <!-- The main header used across all the pages of our website -->
+
+    <header>
+      <h1>Header</h1>
+    </header>
+
+    <nav>
+      <ul>
+        <li><a href="#">Home</a></li>
+        <li><a href="#">Our team</a></li>
+        <li><a href="#">Projects</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+
+      <!-- A Search form: another common non-linear way to navigate through a site. -->
+
+      <form>
+        <input type="search" name="q" placeholder="Search query" />
+        <input type="submit" value="Go!" />
+      </form>
+    </nav>
+
+    <!-- Our page's main content -->
+    <main>
+      <!-- An article -->
+      <article>
+        <h2>Article heading</h2>
+
+        <p>
+          Lorem ipsum dolor sit amet, consectetur adipisicing elit. Donec a diam
+          lectus. Set sit amet ipsum mauris. Maecenas congue ligula as quam
+          viverra nec consectetur ant hendrerit. Donec et mollis dolor. Praesent
+          et diam eget libero egestas mattis sit amet vitae augue. Nam tincidunt
+          congue enim, ut porta lorem lacinia consectetur.
+        </p>
+
+        <section>
+          <h3>Subsection</h3>
+
+          <p>
+            Donec ut librero sed accu vehicula ultricies a non tortor. Lorem
+            ipsum dolor sit amet, consectetur adipisicing elit. Aenean ut
+            gravida lorem. Ut turpis felis, pulvinar a semper sed, adipiscing id
+            dolor.
+          </p>
+
+          <p>
+            Pelientesque auctor nisi id magna consequat sagittis. Curabitur
+            dapibus, enim sit amet elit pharetra tincidunt feugiat nist
+            imperdiet. Ut convallis libero in urna ultrices accumsan. Donec sed
+            odio eros.
+          </p>
+        </section>
+
+        <section>
+          <h3>Another subsection</h3>
+
+          <p>
+            Donec viverra mi quis quam pulvinar at malesuada arcu rhoncus. Cum
+            soclis natoque penatibus et manis dis parturient montes, nascetur
+            ridiculus mus. In rutrum accumsan ultricies. Mauris vitae nisi at
+            sem facilisis semper ac in est.
+          </p>
+
+          <p>
+            Vivamus fermentum semper porta. Nunc diam velit, adipscing ut
+            tristique vitae sagittis vel odio. Maecenas convallis ullamcorper
+            ultricied. Curabitur ornare, ligula semper consectetur sagittis,
+            nisi diam iaculis velit, is fringille sem nunc vet mi.
+          </p>
+        </section>
+      </article>
+
+      <!-- the aside content can also be nested within the main content -->
+      <aside>
+        <h2>Related</h2>
+
+        <ul>
+          <li><a href="#">Oh I do like to be beside the seaside</a></li>
+          <li><a href="#">Oh I do like to be beside the sea</a></li>
+          <li><a href="#">Although in the North of England</a></li>
+          <li><a href="#">It never stops raining</a></li>
+          <li><a href="#">Oh well…</a></li>
+        </ul>
+      </aside>
+    </main>
+
+    <!-- The footer that is used across all the pages of our website -->
+
+    <footer>
+      <p>©Copyright 2050 by nobody. All rights reversed.</p>
+    </footer>
+  </body>
+</html>
+#+end_src
+*** Non-semantic wrappers
+
+=<div>, <span>=
+
+You should use these preferably with a suitable =class attribute=, to provide some kind of label for them so they can be easily targeted.
+*** Line breaks and horizontal rules
+
+=<br>, <hr>=
+
+<br>: the line break element
+<hr>: the thematic break element
+** Advanced text features
+*** Quotations
+**** Blockquotes
+
+a section of block level content (be it a paragraph, multiple paragraphs, a list, etc.)
+
+wrap it inside a =<blockquote>= element to signify this, and include a URL pointing to the source of the quote inside a =cite attribute.=
+
+#+begin_src html
+<p>Here is a blockquote:</p>
+<blockquote
+  cite="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/blockquote">
+  <p>
+    The <strong>HTML <code>&lt;blockquote&gt;</code> Element</strong> (or
+    <em>HTML Block Quotation Element</em>) indicates that the enclosed text is
+    an extended quotation.
+  </p>
+</blockquote>
+#+end_src
+**** Inline quotations
+
+=<q>= element.
+
+#+begin_src html
+<p>
+  The quote element — <code>&lt;q&gt;</code> — is
+  <q
+    cite="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/q">
+    intended for short quotations that don't require paragraph breaks.
+  </q>
+</p>
+#+end_src
+**** Citations
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/blockquote#cite][cite]] attribute  sounds useful, but unfortunately browsers, screen readers, etc. don't really do much with it.
+
+There is no way to get the browser to display the contents of cite, without writing your own solution using JavaScript or CSS.
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/cite][cite]] element is meant to contain the title of the resource being quoted
+
+#+begin_src html
+<p>
+  According to the
+  <a href="/en-US/docs/Web/HTML/Reference/Elements/blockquote">
+    <cite>MDN blockquote page</cite></a>:
+</p>
+
+<blockquote
+  cite="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/blockquote">
+  <p>
+    The <strong>HTML <code>&lt;blockquote&gt;</code> Element</strong> (or
+    <em>HTML Block Quotation Element</em>) indicates that the enclosed text is
+    an extended quotation.
+  </p>
+</blockquote>
+
+<p>
+  The quote element — <code>&lt;q&gt;</code> — is
+  <q cite="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/q">
+    intended for short quotations that don't require paragraph breaks.
+  </q>
+  — <a href="/en-US/docs/Web/HTML/Reference/Elements/q"><cite>MDN q page</cite></a>.
+</p>
+#+end_src
+*** Abbreviations
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/abbr][<abbr>]] is used to wrap around an abbreviation or acronym.
+
+provide the full expansion of the term as the value of [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/title][title]] attribute
+
+#+begin_src html
+<p>
+  We use <abbr>HTML</abbr>, Hypertext Markup Language, to structure our web
+  documents.
+</p>
+
+<p>
+  I think <abbr title="Reverend">Rev.</abbr> Green did it in the kitchen with
+  the chainsaw.
+</p>
+#+end_src
+*** Marking up contact details
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/address][address]] wraps around your contact details
+
+#+begin_src html
+<address>Chris Mills, Manchester, The Grim North, UK</address>
+
+<address>
+  <p>
+    Chris Mills<br />
+    Manchester<br />
+    The Grim North<br />
+    UK
+  </p>
+
+  <ul>
+    <li>Tel: 01234 567 890</li>
+    <li>Email: me@grim-north.co.uk</li>
+  </ul>
+</address>
+
+<address>
+  Page written by <a href="../authors/chris-mills/">Chris Mills</a>.
+</address>
+#+end_src
+
+It would be correct to use it in the footer of a site to include the contact information of the entire site, or inside an article for the contact details of the author, but not to mark up a list of addresses unrelated to the content of that page.
+
+*** Superscript and subscript
+
+#+begin_src html
+<p>My birthday is on the 25<sup>th</sup> of May 2001.</p>
+<p>
+  Caffeine's chemical formula is
+  C<sub>8</sub>H<sub>10</sub>N<sub>4</sub>O<sub>2</sub>.
+</p>
+<p>If x<sup>2</sup> is 9, x must equal 3 or -3.</p>
+#+end_src
+
+*** Representing computer code
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/code][<code>]] marking up generic pieces of computer code.
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/pre][<pre>]] retaining whitespace (generally code blocks)
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/var][<var>]] specifically marking up variable names.
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/kbd][<kbd>]] marking up keyboard (and other types of) input entered into the computer.
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/samp][<samp>]] marking up the output of a computer program.
+
+#+begin_src html
+<pre><code>const para = document.querySelector('p');
+
+para.onclick = function() {
+  alert('Owww, stop poking me!');
+}</code></pre>
+
+<p>
+  You shouldn't use presentational elements like <code>&lt;font&gt;</code> and
+  <code>&lt;center&gt;</code>.
+</p>
+
+<p>
+  In the above JavaScript example, <var>para</var> represents a paragraph
+  element.
+</p>
+
+<p>Select all the text with <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>A</kbd>.</p>
+
+<pre>$ <kbd>ping mozilla.org</kbd>
+<samp>PING mozilla.org (63.245.215.20): 56 data bytes
+64 bytes from 63.245.215.20: icmp_seq=0 ttl=40 time=158.233 ms</samp></pre>
+#+end_src
+
+*** Marking up times and dates
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/time][<time>]] marking up times and dates in a machine-readable format.
+
+The =<time>= element allows you to attach an unambiguous, machine-readable time/date for this purpose.
+
+#+begin_src html
+<time datetime="2016-01-20">20 January 2016</time>
+<!-- Standard simple date -->
+<time datetime="2016-01-20">20 January 2016</time>
+<!-- Just year and month -->
+<time datetime="2016-01">January 2016</time>
+<!-- Just month and day -->
+<time datetime="01-20">20 January</time>
+<!-- Just time, hours and minutes -->
+<time datetime="19:30">19:30</time>
+<!-- You can do seconds and milliseconds too! -->
+<time datetime="19:30:01.856">19:30:01.856</time>
+<!-- Date and time -->
+<time datetime="2016-01-20T19:30">7.30pm, 20 January 2016</time>
+<!-- Date and time with timezone offset -->
+<time datetime="2016-01-20T19:30+01:00">
+  7.30pm, 20 January 2016 is 8.30pm in France
+</time>
+<!-- Calling out a specific week number -->
+<time datetime="2016-W04">The fourth week of 2016</time>
+#+end_src
+
+** Creating links
+
+they are what makes the Web a web
+
+*** What is a hyperlink?
+
+are what makes the Web a web.
+
+=Hyperlinks allow us to link documents to other documents or resources, link to specific parts of documents, or make apps available at a web address.=
+
+[[https://developer.mozilla.org/en-US/docs/Glossary/URL][URL]]
+  A URL can point to HTML files, text files, images, text documents, video and audio files, or anything else that lives on the Web.
+
+*** Anatomy of a link
+
+A basic link is created by wrapping the text or other content inside an [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/a][<a>]] element and using the [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/a#href][href]] attribute, also known as a Hypertext Reference, or target, that contains the web address.
+
+#+begin_src html
+<p>
+  I'm creating a link to
+  <a href="https://www.mozilla.org/en-US/">the Mozilla homepage</a>.
+</p>
+#+end_src
+
+**** Block level links
+
+[[https://developer.mozilla.org/en-US/docs/Glossary/Block/CSS][block-level elements]]
+
+#+begin_src html
+<a href="https://developer.mozilla.org/en-US/">
+  <h1>MDN Web Docs</h1>
+</a>
+<p>
+  Documenting web technologies, including CSS, HTML, and JavaScript, since 2005.
+</p>
+#+end_src
+
+**** Image links
+
+To turn an image into a link, wrap the [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img][<img>]] element with an [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/a][<a>]] element. 
+
+#+begin_src html
+<a href="https://developer.mozilla.org/en-US/">
+  <img src="mdn_logo.svg" alt="MDN Web Docs" />
+</a>
+#+end_src
+
+**** Adding supporting information with the title attribute
+
+The title contains additional information about the link
+
+#+begin_src html
+<p>
+  I'm creating a link to
+  <a
+    href="https://www.mozilla.org/en-US/"
+    title="The best place to find more information about Mozilla's
+          mission and how to contribute">
+    the Mozilla homepage</a>.
+</p>
+#+end_src
+
+*** A quick primer on URLs and paths
+
+=A URL, or Uniform Resource Locator is a string of text that defines where something is located on the Web.=
+
+=Paths specify where the file you're interested in is located in the filesystem.=
+
+In a real website, =index.html= would be our home page or landing page
+
+=you can have two index.html files in one project, as long as they're in different filesystem locations.=
+
+**** Document fragments
+
+It's possible to link to a specific part of an HTML document, known as a document fragment
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/id][id]] attribute to the element you want to link to.
+you'd include it at the end of the URL, preceded by a hash/pound symbol =(#),=
+
+#+begin_src html
+<h2 id="Mailing_address">Mailing address</h2>
+
+<p>
+  Want to write us a letter? Use our
+  <a href="contacts.html#Mailing_address">mailing address</a>.
+</p>
+<!-- use the document fragment reference on its own to link to another part of the current document -->
+<p>
+  The <a href="#Mailing_address">company mailing address</a> can be found at the
+  bottom of this page.
+</p>
+#+end_src
+
+**** Absolute versus relative URLs
+
+Absolute URL: Points to a location defined by its absolute location on the web, including [[https://developer.mozilla.org/en-US/docs/Glossary/Protocol][protocol]] and [[https://developer.mozilla.org/en-US/docs/Glossary/Domain_name][domain]] name.
+
+Relative URL: Points to a location that is relative to the file you are linking from, more like what we looked at in the previous section.
+
+*** Link best practices
+
+**** Use clear link wording
+
+Screen reader users like jumping around from link to link on the page, and reading links out of context.
+
+Search engines use link text to index target files, so it is a good idea to include keywords in your link text to effectively describe what is being linked to.
+
+Visual readers skim over the page rather than reading every word, and their eyes will be drawn to page features that stand out, like links. They will find descriptive link text useful.
+
+#+begin_src html
+<p><a href="https://www.mozilla.org/en-US/firefox/new/">Download Firefox</a></p>
+#+end_src
+
+**** Linking to non-HTML resources — leave clear signposts
+
+When linking to a resource that will not be opened in the current page as a "normal navigation", you should add clear wording to the link text about what is going to happen.
+
+#+begin_src html
+<p>
+  <a href="/large-report.pdf" download>
+    Download the sales report (PDF, 10MB)
+  </a>
+</p>
+
+<p>
+  <a href="https://www.example.com/video-stream/" target="_blank">
+    Watch the video (stream opens in separate tab, HD quality)
+  </a>
+</p>
+#+end_src
+
+**** Use the download attribute when linking to a download
+
+#+begin_src html
+<a
+  href="https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US"
+  download="firefox-latest-64bit-installer.exe">
+  Download Latest Firefox for Windows (64-bit) (English, US)
+</a>
+#+end_src
+
+**** When to open links in a new tab
+
+done by setting the [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/a#target][target]] attribute to "_blank".
+
+#+begin_src html
+Firefox is developed by the
+<a href="https://www.mozilla.org/en-US/" target="_blank">Mozilla Foundation</a>.
+#+end_src
+
+A common approach is to open external links in new tabs and internal links in the same tab.
+
+*** Email links
+
+done using the [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/a][<a>]] element and the mailto: URL scheme.
+
+#+begin_src html
+<a href="mailto:nowhere@mozilla.org">Send email to nowhere</a>
+#+end_src
+
+**** Specifying details
+
+In addition to the email address, you can provide other information.
+
+In fact, any standard mail header fields can be added to the mailto URL you provide.
+
+The most commonly used of these are "subject", "cc", and "body" (which is not a true header field, but allows you to specify a short content message for the new email).
+
+=Each field and its value is specified as a query term.=
+
+=The values of each field must be URL-encoded with non-printing characters=
+  (invisible characters like tabs, carriage returns, and page breaks) and spaces [[https://developer.mozilla.org/en-US/docs/Glossary/Percent-encoding][percent-escaped]]
+  =note the use of the question mark (?) to separate the main URL from the field values=
+  =ampersands (&) to separate each field=
+  This is standard URL query notation.
+  
+#+begin_src html
+<a
+  href="mailto:nowhere@mozilla.org?cc=name2@rapidtables.com&bcc=name3@rapidtables.com&subject=The%20subject%20of%20the%20email&body=The%20body%20of%20the%20email">
+  Send mail with cc, bcc, subject and body
+</a>
+#+end_src
+
+Here are a few other sample mailto URLs:
+
+mailto:
+mailto:nowhere@mozilla.org
+mailto:nowhere@mozilla.org,nobody@mozilla.org
+mailto:nowhere@mozilla.org?cc=nobody@mozilla.org
+mailto:nowhere@mozilla.org?cc=nobody@mozilla.org&subject=This%20is%20the%20subject
+
+** HTML images
+
+*** How do we put an image on a webpage?
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img][<img>]] element
+  [[*Void elements]] it cannot have any child content and cannot have an end tag
+  src attribute contains a URL pointing to the image
+  As with the href attribute for [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/a][<a>]] elements, the src attribute =can be a relative URL or an absolute URL.=
+
+  alt Alternative text
+
+#+begin_src html
+<img src="dinosaur.jpg" alt="Dinosaur" />
+#+end_src
+
+=Search engines also read image filenames and count them towards SEO.=
+SEO（搜索引擎优化）
+=Linking via absolute URLs is not recommended, however.=
+  In addition, it is more efficient to use relative URLs than absolute URLs in terms of maintenance (when you move your site to a different domain, you won't need to update all your URLs to include the new domain).
+[[https://developer.mozilla.org/en-US/docs/Glossary/CDN][CDN (Content Delivery Network)]]
+
+Elements like <img> and <video> are sometimes referred to as replaced elements.
+  =This is because the element's content and size are defined by an external resource=
+  =not by the contents of the element itself.=
+
+**** Alternative text
+
+=alt=. Its value is supposed to be a textual description of the image
+
+#+begin_src html
+<img
+  src="images/dinosaur.jpg"
+  alt="The head and torso of a dinosaur skeleton;
+          it has a large head with long sharp teeth" />
+#+end_src
+
+The user is visually impaired, and is using a [[https://en.wikipedia.org/wiki/Screen_reader][screen reader]] to read the web out to them. In fact, having alt text available to describe images is useful to most users.
+As described above, the spelling of the file or path name might be wrong.
+The browser doesn't support the image type. Some people still use text-only browsers, such as [[https://en.wikipedia.org/wiki/Lynx_%28web_browser%29][Lynx]], which displays the alt text of images.
+You may want to provide text for search engines to utilize; for example, search engines can match alt text with search queries.
+Users have turned off images to reduce data transfer volume and distractions. This is especially common on mobile phones, and in countries where bandwidth is limited or expensive.
+
+**** Width and height
+
+use the [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img#width][width]] and [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img#height][height]] attributes to specify the width and height of your image. 
+
+#+begin_src html
+<img
+  src="images/dinosaur.jpg"
+  alt="The head and torso of a dinosaur skeleton;
+          it has a large head with long sharp teeth"
+  width="400"
+  height="341" />
+#+end_src
+
+The HTML for your page and the image are separate resources, fetched by the browser as separate HTTP(S) requests.
+If you specify the actual size of the image in your HTML, using the width and height attributes, then the browser knows, before it has downloaded the image, how much space it has to allow for it.
+This means that when the image has been downloaded, the browser doesn't have to move the surrounding content.
+
+**** Image titles
+
+title has a number of accessibility problems, mainly based around the fact that screen reader support is very unpredictable and most browsers won't show it unless you are hovering with a mouse (so e.g., no access to keyboard users).
+
+#+begin_src html
+<img
+  src="images/dinosaur.jpg"
+  alt="The head and torso of a dinosaur skeleton;
+          it has a large head with long sharp teeth"
+  width="400"
+  height="341"
+  title="A T-Rex on display in the Manchester University Museum" />
+#+end_src
+
+https://www.24a11y.com/2017/the-trials-and-tribulations-of-the-title-attribute/
+
+*** Media assets and licensing
+
+Images (and other media asset types) you find on the web are released under various license types.
+
+**** Understanding license types
+
+All rights reserved
+Permissive
+  If the image is released under a permissive license, such as [[https://mit-license.org/][MIT]], [[https://opensource.org/license/BSD-3-clause][BSD]], or a suitable [[https://chooser-beta.creativecommons.org/][Creative Commons (CC) license]], you do not need to pay a license fee or seek permission to use it.
+  Copyleft licenses (such as the GNU General Public License (GPL) or "Share Alike" Creative Commons licenses) stipulate that derivative works need to be released under the same license as the original.
+    The basic idea is that a new project built with the code of a copyleft-licensed project (this is known as a "fork" of the original software) will also need to be licensed under the same copyleft license.
+Public domain/CC0
+  https://creativecommons.org/public-domain/cc0/
+  Work released into the public domain is sometimes referred to as "no rights reserved" — no copyright applies to it, and it can be used without permission and without having to fulfill any licensing conditions.
+  
+**** Searching for permissively-licensed images
+
+Some search engines have tools to help you find images with permissive licenses.
+  For example, when using Google, go to the "Images" tab to search for images, then click "Tools". There is a "Usage Rights" dropdown in the resulting toolbar where you can choose to search specifically for images under creative commons licenses.
+
+Image repository sites, such as [[https://flickr.com/][Flickr]], [[https://www.shutterstock.com/][ShutterStock]], and [[https://pixabay.com/][Pixabay]], have search options to allow you to search just for permissively-licensed images.
+
+Some sites exclusively distribute permissively-licensed images and icons, such as [[https://picryl.com/][Picryl]] and [[https://thenounproject.com/][The Noun Project.]]
+
+*** Annotating images with figures and figure captions
+
+#+begin_src html
+<div class="figure">
+  <img
+    src="images/dinosaur.jpg"
+    alt="The head and torso of a dinosaur skeleton;
+            it has a large head with long sharp teeth"
+    width="400"
+    height="341" />
+
+  <p>A T-Rex on display in the Manchester University Museum.</p>
+</div>
+#+end_src
+
+This is OK. It contains the content you need, and is nicely stylable using CSS.
+
+a problem here: there is nothing that semantically links the image to its caption, which can cause problems for screen readers.
+
+A better solution, is to use the HTML [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/figure][<figure>]] and [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/figcaption][<figcaption>]] elements.
+
+#+begin_src html
+<figure>
+  <img
+    src="images/dinosaur.jpg"
+    alt="The head and torso of a dinosaur skeleton;
+            it has a large head with long sharp teeth"
+    width="400"
+    height="341" />
+
+  <figcaption>
+    A T-Rex on display in the Manchester University Museum.
+  </figcaption>
+</figure>
+#+end_src
+
+=A figure doesn't have to be an image.=
+=A figure could be several images, a code snippet, audio, video, equations, a table, or something else.=
+
+*** CSS background images
+
+The CSS [[https://developer.mozilla.org/en-US/docs/Web/CSS/background-image][background-image]] property, and the other background-* properties, are used to control background image placement.
+
+#+begin_src css
+p {
+  background-image: url("images/dinosaur.jpg");
+}
+#+end_src
+
+CSS 背景图 在定位和控制上通常更灵活、更轻便，特别适合用于“装饰性”图像。
+
+** HTML video and audio
+*** Video and audio on the web
+
+The first influx of online videos and audio were made possible by proprietary plugin-based technologies like [[https://en.wikipedia.org/wiki/Adobe_Flash][Flash]] and [[https://en.wikipedia.org/wiki/Microsoft_Silverlight][Silverlight]].
+  Both of these had security and accessibility issues, and are now obsolete,
+
+ in favor of native HTML solutions [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video][<video>]] and [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/audio][<audio>]] elements and the availability of [[https://developer.mozilla.org/en-US/docs/Glossary/API][JavaScript APIs]] for controlling them.
+*** The <video> element
+
+The [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video][<video>]] element allows you to embed a video very easily.
+
+#+begin_src html
+<video src="rabbit320.webm" controls>
+  <p>
+    Your browser doesn't support HTML video. Here is a
+    <a href="rabbit320.webm">link to the video</a> instead.
+  </p>
+</video>
+#+end_src
+
+the src (source) attribute contains a path to the video
+=Users must be able to control video and audio playback=
+  =use the controls attribute to include the browser's own control interface=
+  =or build your interface using the appropriate JavaScript API.=
+  https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement
+
+=fallback content=
+  The paragraph inside the <video> tags
+  =this will be displayed if the browser accessing the page doesn't support the <video> element=
+  
+*** Using multiple source formats to improve compatibility
+**** Contents of a media file
+
+Formats like OGG, WAV, MP4 and WebM are called [[https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Formats/Containers][container formats.]]
+
+They define a structure in which the audio and/or video tracks that make up the media are stored, along with metadata describing the media, what codecs are used to encode its channels, and so forth.
+
+[[./pictures/html/4.png]]
+
+Each audio track is encoded using an [[https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Formats/Audio_codecs][audio codec]], while video tracks are encoded using (as you probably have guessed) a [[https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Formats/Video_codecs][video codec.]]
+
+different browsers support different video and audio formats, and different container formats (like OGG, MP4, and WebM, which in turn can contain different types of video and audio).
+
+There are some special cases.
+  For example, for some types of audio, a codec's data is often stored without a container, or with a simplified container.
+  Another example is the ever-popular "MP3 file". An "MP3 file" is an audio file encoded using MPEG-1 Audio Layer III compression. While it can include metadata, it is not encapsulated within a separate MPEG or MPEG-2 container.
+
+**** Media file support in browsers
+
+Each web browser supports an assortment of [[https://developer.mozilla.org/en-US/docs/Glossary/Codec][codecs]]
+
+https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Formats/Containers#choosing_the_right_container
+
+https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Formats/Video_codecs#choosing_a_video_codec
+
+https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Formats/Audio_codecs#choosing_an_audio_codec
+
+#+begin_src html
+<video controls>
+  <source src="rabbit320.mp4" type="video/mp4" />
+  <source src="rabbit320.webm" type="video/webm" />
+  <p>
+    Your browser doesn't support this video. Here is a
+    <a href="rabbit320.mp4">link to the video</a> instead.
+  </p>
+</video>
+#+end_src
+
+In this case the browser will =go through the <source> elements and play the first one that it has the codec to support.=
+
+type attribute, optional
+  =The type attribute contains the MIME type of the file specified by the <source>=
+  https://developer.mozilla.org/en-US/docs/Glossary/MIME_type
+
+**** Other <video> features
+
+#+begin_src html
+<video
+  controls
+  width="400"
+  height="400"
+  autoplay
+  loop
+  muted
+  preload="auto"
+  poster="poster.png">
+  <source src="rabbit320.mp4" type="video/mp4" />
+  <source src="rabbit320.webm" type="video/webm" />
+  <p>
+    Your browser doesn't support this video. Here is a
+    <a href="rabbit320.mp4">link to the video</a> instead.
+  </p>
+</video>
+#+end_src
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video#width][width]] and [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video#height][height]]
+  can control the video size either with these attributes or with [[https://developer.mozilla.org/en-US/docs/Glossary/CSS][CSS.]]
+  =aspect ratio=
+    videos maintain their native width-height ratio
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video#autoplay][autoplay]]
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video#loop][loop]]
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video#muted][muted]]
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video#poster][poster]]
+  The URL of an image which will be displayed before the video is played.
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/video#preload][preload]]
+  "none" does not buffer the file
+  "auto" buffers the media file
+  "metadata" buffers only the metadata for the file
+
+*** The <audio> element
+
+like [[*Using multiple source formats to improve compatibility]]
+
+#+begin_src html
+<audio controls>
+  <source src="viper.mp3" type="audio/mp3" />
+  <source src="viper.ogg" type="audio/ogg" />
+  <p>
+    Your browser doesn't support this audio file. Here is a
+    <a href="viper.mp3">link to the audio</a> instead.
+  </p>
+</audio>
+#+end_src
+
+The [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/audio][<audio>]] element doesn't support the width/height attributes
+
+It also doesn't support the poster attribute — again, no visual component.
+[[*Other <video> features]]
+
+*** Displaying video text tracks
+
+we use the [[https://developer.mozilla.org/en-US/docs/Web/API/WebVTT_API][WebVTT]] file format and the [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/track][<track>]] element.
+
+WebVTT is a format for writing text files containing multiple strings of text along with metadata such as the time in the video at which each text string should be displayed, and even limited styling/positioning information.
+
+=cues=
+
+#+begin_src WebVTT
+WEBVTT
+
+1
+00:00:22.230 --> 00:00:24.606
+This is the first subtitle.
+
+2
+00:00:30.739 --> 00:00:34.074
+This is the second.
+
+…
+#+end_src
+
+1.Save it as a =.vtt= file
+2.Link to the =.vtt= file with the =<track>= element.
+  Use the kind attribute to specify whether the cues are subtitles, captions, or descriptions.
+  use srclang to tell the browser what language you have written the subtitles in.
+  add label to help readers identify the language they are searching for.
+
+https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Audio_and_video_delivery/Adding_captions_and_subtitles_to_HTML5_video
+
+#+begin_src html
+<video controls>
+  <source src="example.mp4" type="video/mp4" />
+  <source src="example.webm" type="video/webm" />
+  <track kind="subtitles" src="subtitles_es.vtt" srclang="es" label="Spanish" />
+</video>
+#+end_src
+
+** HTML table basics
+*** What is a table?
+
+a structured set of data made up of rows and columns (tabular data)
+
+[[./pictures/html/5.png]]
+**** How does a table work?
+Information is easily interpreted by making visual associations between row and column headers.
+**** Table styling
+for tables to be effective on the web, you need to provide some styling information with [[https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Styling_basics][CSS]], as well as good solid structure with HTML.
+
+#+begin_src css
+html {
+  font-family: sans-serif;
+}
+
+table {
+  border-collapse: collapse;
+  border: 2px solid rgb(200,200,200);
+  letter-spacing: 1px;
+  font-size: 0.8rem;
+}
+
+td, th {
+  border: 1px solid rgb(190,190,190);
+  padding: 10px 20px;
+}
+
+th {
+  background-color: rgb(235,235,235);
+}
+
+td {
+  text-align: center;
+}
+
+tr:nth-child(even) td {
+  background-color: rgb(250,250,250);
+}
+
+tr:nth-child(odd) td {
+  background-color: rgb(245,245,245);
+}
+
+caption {
+  padding: 10px;
+}
+#+end_src
+
+#+begin_src html
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Table template</title>
+    <link href="minimal-table.css" rel="stylesheet" type="text/css">
+  </head>
+  <body>
+    <h1>Table template</h1>
+
+
+  </body>
+</html>
+#+end_src
+**** When should you avoid HTML tables?
+
+Unfortunately, a lot of people used to use HTML tables to lay out web pages, for example one row to contain a page header, a row to contain each content column, one row to contain the footer, etc.
+  This technique was used because CSS support across browsers used to be a lot more limited.
+
+=Modern browsers have solid CSS support so table-based layouts are now extremely rare, but you might still see them in some corners of the web.=
+
+=using tables for layout rather than [[https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/CSS_layout][CSS layout techniques]] is a bad idea.=
+*** Active learning: Creating your first table
+
+#+begin_src html
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Table template</title>
+    <link href="minimal-table.css" rel="stylesheet" type="text/css">
+  </head>
+  <body>
+    <h1>Table template</h1>
+    <table>
+      <tr>
+        <td>Hi, I'm your first cell.</td>
+        <td>I'm your second cell.</td>
+        <td>I'm your third cell.</td>
+        <td>I'm your fourth cell.</td>
+      </tr>
+    
+      <tr>
+        <td>Second row, first cell.</td>
+        <td>Cell 2.</td>
+        <td>Cell 3.</td>
+        <td>Cell 4.</td>
+      </tr>
+    </table>
+  </body>
+</html>
+#+end_src
+
+The content of every table is enclosed by these two tags: ~<table></table>~.
+
+~<td>~ element ('td' stands for 'table data')
+
+~<tr>~ element ('tr' stands for 'table row')
+*** Adding headers with <th> elements
+
+#+begin_src html
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Dogs table</title>
+    <link href="minimal-table.css" rel="stylesheet" type="text/css">
+  </head>
+  <body>
+    <h1>Dogs Table</h1>
+
+    <table>
+      <tr>
+        <td>&nbsp;</td>
+        <th scope="col">Knocky</th>
+        <th scope="col">Flor</th>
+        <th scope="col">Ella</th>
+        <th scope="col">Juan</th>
+      </tr>
+      <tr>
+        <th scope="row">Breed</th>
+        <td>Jack Russell</td>
+        <td>Poodle</td>
+        <td>Streetdog</td>
+        <td>Cocker Spaniel</td>
+      </tr>
+      <tr>
+        <th scope="row">Age</th>
+        <td>16</td>
+        <td>9</td>
+        <td>10</td>
+        <td>5</td>
+      </tr>
+      <tr>
+        <th scope="row">Owner</th>
+        <td>Mother-in-law</td>
+        <td>Me</td>
+        <td>Me</td>
+        <td>Sister-in-law</td>
+      </tr>
+      <tr>
+        <th scope="row">Eating Habits</th>
+        <td>Eats everyone's leftovers</td>
+        <td>Nibbles at food</td>
+        <td>Hearty eater</td>
+        <td>Will eat till he explodes</td>
+      </tr>
+    </table>
+
+
+  </body>
+</html>
+#+end_src
+**** Why are headers useful?
+
+it is easier to find the data you are looking for when the headers clearly stand out, and the design just generally looks better.
+
+=scope attribute=
+  they allow you to make tables more accessible by associating each header with all the data in the same row or column.
+*** Allowing cells to span multiple rows and columns
+
+#+begin_src html
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Animals table</title>
+    <link href="minimal-table.css" rel="stylesheet" type="text/css">
+  </head>
+  <body>
+    <h1>Animals table</h1>
+
+    <table>
+      <tr>
+        <th colspan="2">Animals</th>
+      </tr>
+      <tr>
+        <th colspan="2">Hippopotamus</th>
+      </tr>
+      <tr>
+        <th rowspan="2">Horse</th>
+        <td>Mare</td>
+      </tr>
+      <tr>
+        <td>Stallion</td>
+      </tr>
+      <tr>
+        <th colspan="2">Crocodile</th>
+      </tr>
+      <tr>
+        <th rowspan="2">Chicken</th>
+        <td>Hen</td>
+      </tr>
+      <tr>
+        <td>Rooster</td>
+      </tr>
+    </table>
+
+
+  </body>
+</html>
+#+end_src
+** HTML table accessibility
+*** Recap: Tables for visually impaired users
+
+You can give your table a =caption by putting it inside a <caption> element and nesting that inside the <table> element.=
+
+You should put it just below the opening <table> tag.
+
+#+begin_src html
+<table>
+  <caption>
+    Dinosaurs in the Jurassic period
+  </caption>
+
+  …
+</table>
+#+end_src
+
+the caption is meant to contain a description of the table contents
+
+The =summary attribute= can also be used on the <table> element to provide a description
+  summary is deprecated and can't be read by sighted users (it doesn't appear on the page).
+  
+*** Adding structure with <thead>, <tbody>, and <tfoot>
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/thead][<thead>]], [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/tbody][<tbody>]], and [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/tfoot][<tfoot>]], which allow you to mark up a header, body, and footer section for the table.
+
+=they are very useful for applying styling and layout enhancements via CSS,=
+
+The <thead> element must wrap the header
+  If you are using [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/col][<col>]]/[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/colgroup][<colgroup>]] elements, the table header should come just below those.
+The <tbody> element needs to wrap the main part of the table content that isn't the table header or footer.
+The <tfoot> element needs to wrap the part of the table that is the footer
+
+<tbody> is always included in every table, =implicitly if you don't specify it in your code.=
+
+open up one of your previous examples that doesn't include <tbody> and look at the HTML code in your [[https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Tools_and_setup/What_are_browser_developer_tools][browser developer tools]]
+
+#+begin_src html
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>My spending record</title>
+    <link href="minimal-table.css" rel="stylesheet" type="text/css">
+    <style>
+        tbody {
+          font-size: 90%;
+          font-style: italic;
+        }
+
+        tfoot {
+          font-weight: bold;
+        }
+    </style>
+  </head>
+  <body>
+    <h1>My spending record</h1>
+
+      <table>
+        <caption>How I chose to spend my money</caption>
+        <thead>
+          <tr>
+            <th>Purchase</th>
+            <th>Location</th>
+            <th>Date</th>
+            <th>Evaluation</th>
+            <th>Cost (€)</th>
+          </tr>
+        </thead>
+        <tfoot>
+          <tr>
+            <td colspan="4">SUM</td>
+            <td>118</td>
+          </tr>
+        </tfoot>
+        <tbody>
+          <tr>
+            <td>Haircut</td>
+            <td>Hairdresser</td>
+            <td>12/09</td>
+            <td>Great idea</td>
+            <td>30</td>
+          </tr>
+          <tr>
+            <td>Lasagna</td>
+            <td>Restaurant</td>
+            <td>12/09</td>
+            <td>Regrets</td>
+            <td>18</td>
+          </tr>
+          <tr>
+            <td>Shoes</td>
+            <td>Shoeshop</td>
+            <td>13/09</td>
+            <td>Big regrets</td>
+            <td>65</td>
+          </tr>
+          <tr>
+            <td>Toothpaste</td>
+            <td>Supermarket</td>
+            <td>13/09</td>
+            <td>Good</td>
+            <td>5</td>
+          </tr>
+        </tbody>
+    </table>
+
+  </body>
+</html>
+#+end_src
+
+*** The scope attribute
+
+The [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/th#scope][scope]] attribute can be added to the <th> element to tell screen readers exactly what cells the header is a header for
+
+#+begin_src html
+<thead>
+  <tr>
+    <th scope="col">Purchase</th>
+    <th scope="col">Location</th>
+    <th scope="col">Date</th>
+    <th scope="col">Evaluation</th>
+    <th scope="col">Cost (€)</th>
+  </tr>
+</thead>
+#+end_src
+
+#+begin_src html
+<tr>
+  <th scope="row">Haircut</th>
+  <td>Hairdresser</td>
+  <td>12/09</td>
+  <td>Great idea</td>
+  <td>30</td>
+</tr>
+#+end_src
+
+scope has two more possible values — =colgroup and rowgroup.=
+
+#+begin_src html
+<thead>
+  <tr>
+    <th colspan="3" scope="colgroup">Clothes</th>
+  </tr>
+  <tr>
+    <th scope="col">Trousers</th>
+    <th scope="col">Skirts</th>
+    <th scope="col">Dresses</th>
+  </tr>
+</thead>
+#+end_src
+
+#+begin_src html
+<tr>
+  <th rowspan="2" scope="rowgroup">The Netherlands</th>
+  <th scope="row">Amsterdam</th>
+  <td>89</td>
+  <td>34</td>
+  <td>69</td>
+</tr>
+<tr>
+  <th scope="row">Utrecht</th>
+  <td>80</td>
+  <td>12</td>
+  <td>43</td>
+</tr>
+#+end_src
+
+*** The id and headers attributes
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/id][id]] and [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/td#headers][headers]] attributes to create associations between headers and cells.
+
+headers attribute takes a list of unordered, space-separated [[https://developer.mozilla.org/en-US/docs/Glossary/String][strings]], each corresponding to the unique id of the <th> elements that provide headings for either a data cell (<td> element) or another header cell (<th> element).
+
+This gives your HTML table an explicit definition of the position of each cell in the table, defined by the header(s) for each column and row it is part of
+
+#+begin_src html
+<thead>
+  <tr>
+    <th id="clothes" colspan="3">Clothes</th>
+  </tr>
+  <tr>
+    <th id="trousers" headers="clothes">Trousers</th>
+    <th id="skirts" headers="clothes">Skirts</th>
+    <th id="dresses" headers="clothes">Dresses</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <th id="belgium" rowspan="3">Belgium</th>
+    <th id="antwerp" headers="belgium">Antwerp</th>
+    <td headers="antwerp belgium clothes trousers">56</td>
+    <td headers="antwerp belgium clothes skirts">22</td>
+    <td headers="antwerp belgium clothes dresses">43</td>
+  </tr>
+</tbody>
+#+end_src
+
+** Forms and buttons in HTML
+*** Interacting with users
+[[https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Structuring_content/Creating_links][Links]] can be used to navigate to different sections of content
+[[https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Structuring_content/HTML_video_and_audio][<video> and <audio>]]  elements generally feature controls such as play/pause, fast forward, rewind, etc.
+
+To provide this two-way experience, you need to use buttons and forms.
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/button][<button>]] elements
+  also sometimes created using [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input][<input>]] elements with their type attributes set to a value like button or submit).
+
+Forms are created using elements such as [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/form][form]], [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/label][label]], [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input][input]] and [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/select][select]]
+*** Buttons
+
+they are used to trigger functionality
+
+#+begin_src html
+<button>Press me</button>
+#+end_src
+
+#+begin_src js
+const btn = document.querySelector("button");
+btn.addEventListener("click", () => {
+  btn.textContent = "YOU CLICKED ME!! ❤️";
+  setTimeout(() => {
+    btn.textContent = "Press me";
+  }, 1000);
+});
+#+end_src
+*** The anatomy of a form
+
+A basic form contains three things:
+  1.A [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/form][form]] element
+    wraps all of the other form content
+  2.One or more pairs each consisting of a [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/label][<label>]] element and a form control element (usually an [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input][<input>]] element, but there are other types as well, for example [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/select][<select>]])
+  3.A [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/button][<button>]] element, used to submit the form.
+
+#+begin_src html
+<form action="./submit_page" method="get">
+  <h2>Subscribe to our newsletter</h2>
+  <p>
+    <label for="name">Name (required):</label>
+    <input type="text" name="name" id="name" required />
+  </p>
+  <p>
+    <label for="email">Email (required):</label>
+    <input type="email" name="email" id="email" required />
+  </p>
+  <p>
+    <button>Sign me up!</button>
+  </p>
+</form>
+#+end_src  
+*** The <form> element
+
+the [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/form][<form>]] element acts as the outer wrapper for the form, grouping together all the form controls inside it.
+
+=action=: Contains a path to the page that we want to send the submitted form data to, to be processed.
+
+=method=: Specifies the data transmission [[https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods][method]] you want to use for sending the form data to the server.
+**** Structuring forms
+
+You can include any HTML elements you like inside a <form> element to structure the form elements themselves and provide containers to target with CSS for styling, etc.
+
+Some people use <p> elements to separate out their form elements, some use [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/div][<div>]], [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/section][<section>]], or even [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/li][<li>]] elements.
+
+[[*Non-semantic wrappers]]
+
+There is a specialized element for grouping form elements together called [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/fieldset][<fieldset>]].
+*** <input> elements
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input][<input>]] elements represent the different data items entered into the form.
+
+#+begin_src html
+<input type="text" name="name" id="name" required />
+#+end_src
+
+=type=: Specifies the type of form control to create.
+  There are many different types of form controls, from simple text fields of different types to radio buttons, checkboxes, and more.
+=name=: Specifies a name for the data item.
+  When the form is submitted, the data is sent in name/value pairs.
+=id=: Specifies an ID that can be used to identify the element.
+=required=: Specifies that a value has to be entered into the form element before the form can be submitted.
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/color][<input type="color">]] renders a color picker widget that you choose a color from
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/radio][<input type="radio">]] renders a radio button control that can be selected, or not.
+  you generally need to provide the value that would be submitted if it is selected inside a specific value attribute.
+**** Specialized text field inputs
+The second input field specifically expects an email address, and validates entered values as such.
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/number][<input type="number">]], [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/password][<input type="password">]], [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/tel][<input type="tel">]], etc.
+*** <label> elements
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/label][<label>]] elements provide identifying labels associated with form controls that describe the data that should be entered into them.
+
+The association is created by giving the form control an =id attribute=, then =giving the <label> element a for attribute= with the same value as the control's =id=.
+
+#+begin_src html
+<label for="name">Name (required):</label>
+<input type="text" name="name" id="name" required />
+#+end_src
+**** Explicit and implicit form labels
+
+The form label style you saw above is called =an explicit form label= —
+  the association between control and label is explicitly made =via the id and for attributes.=
+
+implement an =implicit form label= by nesting the control inside the label  
+#+begin_src html
+<label>
+  Name (required):
+  <input type="text" name="name" required />
+</label>
+#+end_src
+
+https://css-tricks.com/html-inputs-and-labels-a-love-story/
+
+we'd recommend using the explicit labeling approach.
+
+*** The <button> element
+When a [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/button][<button>]] element is included inside a <form> element, its default behavior is that it will submit the form, provided there is no invalid data present causing submission to be blocked by client-side form validation.
+
+There are other button behaviors that can be specified via the <button> element's type attribute:
+~<button type="submit">~ explicitly declares that a button should behave like a submit button.
+                         You don't ever really need to declare this, unless for some reason you are including other buttons inside your <form>
+~<button type="reset">~ creates a reset button — this immediately deletes all data out of the form, resetting it to its initial state.
+                        =Don't use reset buttons= — they used to be popular in the early days of the web, but they are usually more annoying than they are helpful.
+~<button type="button">~ creates a button with the same behavior as buttons specified outside of <form> elements.
+
+You can also create the above button types using an <input> element with the same type values specified
+~<input type="submit">~
+~<input type="reset">~
+~<input type="button">~
+=However, these have many disadvantages compared to their <button> counterparts.=
+
+*** An aside on accessibility
+
+It is perfectly possible to use a combination of CSS and JavaScript to make pretty much any HTML element look and behave like a form element.
+
+Developers usually do this for design reasons — some form controls are hard to style.
+
+However, when you do this, you are making life harder for yourself and your users.
+
+*** Other control types
+
+#+begin_src html
+<form action="./payment_page" method="get">
+  <h2>Register for the meetup</h2>
+  <fieldset>
+    <legend>Choose hotel room type (required):</legend>
+    <div>
+      <input
+        type="radio"
+        id="hotelChoice1"
+        name="hotel"
+        value="economy"
+        checked />
+      <label for="hotelChoice1">Economy (+$0)</label>
+
+      <input type="radio" id="hotelChoice2" name="hotel" value="superior" />
+      <label for="hotelChoice2">Superior (+$50)</label>
+
+      <input
+        type="radio"
+        id="hotelChoice3"
+        name="hotel"
+        value="penthouse"
+        disabled />
+      <label for="hotelChoice3">Penthouse (+$150)</label>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Choose classes to attend:</legend>
+    <div>
+      <input type="checkbox" id="yoga" name="yoga" />
+      <label for="yoga">Yoga (+$10)</label>
+
+      <input type="checkbox" id="coffee" name="coffee" />
+      <label for="coffee">Coffee roasting (+$20)</label>
+
+      <input type="checkbox" id="balloon" name="balloon" />
+      <label for="balloon">Balloon animal art (+$5)</label>
+    </div>
+  </fieldset>
+  <p>
+    <label for="transport">How are you getting here:</label>
+    <select name="transport" id="transport">
+      <option value="">--Please choose an option--</option>
+      <option value="plane">Plane</option>
+      <option value="bike">Bike</option>
+      <option value="walk">Walk</option>
+      <option value="bus">Bus</option>
+      <option value="train">Train</option>
+      <option value="jetPack">Jet pack</option>
+    </select>
+  </p>
+  <p>
+    <label for="comments">Any other comments:</label>
+    <textarea id="comments" name="comments" rows="5" cols="33"></textarea>
+  </p>
+  <p>
+    <button>Continue to payment</button>
+  </p>
+</form>
+#+end_src
+
+**** Radio buttons
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/radio][<input type="radio">]]
+
+These render as a set of push button controls where only one of the set can be selected at any one time — you can't select more than one at once.
+
+#+begin_src html
+<fieldset>
+  <legend>Choose hotel room type (required):</legend>
+  <div>
+    <input
+      type="radio"
+      id="hotelChoice1"
+      name="hotel"
+      value="economy"
+      checked />
+    <label for="hotelChoice1">Economy (+$0)</label>
+
+    <input type="radio" id="hotelChoice2" name="hotel" value="superior" />
+    <label for="hotelChoice2">Superior (+$50)</label>
+
+    <input
+      type="radio"
+      id="hotelChoice3"
+      name="hotel"
+      value="penthouse"
+      disabled />
+    <label for="hotelChoice3">Penthouse (+$150)</label>
+  </div>
+</fieldset>
+#+end_src
+
+=name attributes= for each set of radio buttons have to contain the same value, to associate them together as one set.
+
+=value attribute= containing the value to submit for each radio button.
+
+The =<label>= for each radio button should describe that particular value choice, rather than the overall value you are selecting. 
+
+The preferred way to provide a description of the overall value choice is to wrap them in a [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/fieldset][<fieldset>]],
+which takes a [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/legend][<legend>]] element as a child that contains the description.
+
+**** Disabling form controls
+
+=disabled attribute=
+
+<fieldset> elements can also accept the disabled attribute
+  this causes every form control inside the fieldset to be disabled.
+
+*** Checkboxes
+
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/checkbox][<input type="checkbox">]]
+
+#+begin_src html
+<fieldset>
+  <legend>Choose classes to attend:</legend>
+  <div>
+    <input type="checkbox" id="yoga" name="yoga" />
+    <label for="yoga">Yoga (+$10)</label>
+
+    <input type="checkbox" id="coffee" name="coffee" />
+    <label for="coffee">Coffee roasting (+$20)</label>
+
+    <input type="checkbox" id="balloon" name="balloon" />
+    <label for="balloon">Balloon animal art (+$5)</label>
+  </div>
+</fieldset>
+#+end_src
+
+each checkbox has a different name value,
+and they generally aren't given value attributes.
+
+=On submission, each value is submitted with a value of on if the checkbox was checked — yoga=on, balloon=on, etc.=
+
+=It is possible to change the value submitted for a checkbox by giving it a value attribute=, for example: <input type="checkbox" id="yoga" name="yoga" value="yes" /> would result in yoga=yes being submitted if checked.
+
+*** Drop-down menus
+with the [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/select][<select>]] and [[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/option][<option>]] elements
+
+#+begin_src html
+<label for="transport">How are you getting here:</label>
+<select name="transport" id="transport">
+  <option value="">--Please choose an option--</option>
+  <option value="plane">Plane</option>
+  <option value="bike">Bike</option>
+  <option value="walk">Walk</option>
+  <option value="bus">Bus</option>
+  <option value="train">Train</option>
+  <option value="jetPack">Jet pack</option>
+</select>
+#+end_src
+
+=the name attribute= that sets the name of the data item to be submitted.
+
+=Each <option> element can take a value attribute, which specifies the value to be submitted= if that option is chosen from the drop-down list.
+
+If you =don't specify a value, the text inside the <option></option> tags= is used as the value.
+
+*** Multi-line text input fields
+[[https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/textarea][<textarea>]] elements
+
+#+begin_src html
+<label for="comments">Any other comments:</label>
+<textarea id="comments" name="comments" rows="5" cols="33"></textarea>
+#+end_src
+
+*** Form validation
+
+Making sure data does not cause security problems.
+  Bad people know how to submit data formatted specifically so that, on insecure applications, it can execute commands to delete databases or take control of a system.
+
+=Client-side validation=
+  using a combination of form validation attributes (like required) and JavaScript.
+
+=Server-side validation=
+  Server-side validation is great for stopping malicious messages, as it's harder to tamper with the code running on the server.
+
+You need client-side validation to give users feedback on their input and server-side validation to make sure messages are in a format your server can safely handle.
+
+** Debugging HTML
+
+Debugging isn't scary
+
+*** HTML and debugging
+
+=Syntax errors=, =Logic errors=
+
+浏览器解析 HTML 的方式非常宽松。和大多数编程语言严格的语法校验不同：
+HTML 允许你写有语法错误的代码
+浏览器尽力修复这些错误，并仍然尝试渲染页面
+这种方式称为宽容的解析（permissive parsing）
+
+[[https://developer.mozilla.org/en-US/docs/Learn_web_development/Getting_started/Web_standards/How_browsers_load_websites#handling_html][rendered DOM]]
+
+[[https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Structuring_content/Debugging_HTML#html_validation][HTML Validator]]
+
+*** Using a DOM inspector
+
+All modern browsers have a set of [[https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Tools_and_setup/What_are_browser_developer_tools][developer tools]] (devtools) built into
+
+[[https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Tools_and_setup/What_are_browser_developer_tools#how_to_open_the_devtools_in_your_browser][How to open the devtools in your browser]]
+
+*** HTML validation
+
+[[https://validator.w3.org/][Markup Validation Service]]
+
+[[https://developer.mozilla.org/en-US/docs/Learn_web_development/Getting_started/Web_standards/The_web_standards_model][The web standards model]]
+
+* CSS styling basics
+** What is CSS?
+[[https://developer.mozilla.org/en-US/docs/Glossary/CSS][CSS]] (Cascading Style Sheets)
+*** Browser default styles
+[[./pictures/css/1.png]]
+*** What is CSS for?
+Text styling, for example, for changing the [[https://developer.mozilla.org/en-US/docs/Web/CSS/color_value][color]] and [[https://developer.mozilla.org/en-US/docs/Web/CSS/font-size][size]] of headings and links.
+
+Creating layouts, for example, [[https://developer.mozilla.org/en-US/docs/Web/CSS/Layout_cookbook/Column_layouts][turning a single column of text into a multiple-column layout]].
+
+Special effects such as [[https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_animations][animation]].
+*** CSS syntax basics
+
+#+begin_src css
+h1 {
+  color: red;
+  font-size: 2.5em;
+}
+#+end_src
+
+[[https://developer.mozilla.org/en-US/docs/Glossary/CSS_Selector][selector]] {
+  declarations,
+  ...
+}
+
+CSS [[https://developer.mozilla.org/en-US/docs/Glossary/Property/CSS][properties]]
+*** How is CSS applied to HTML?
+[[https://developer.mozilla.org/en-US/docs/Learn_web_development/Getting_started/Web_standards/How_browsers_load_websites][How browsers load websites]]
+1.first receives the HTML document containing the web page content and converts it to a DOM tree.
+2.any CSS rules found in the web page (either inserted directly in the HTML, or in referenced external .css files) are sorted into different "buckets", based on the different elements they will be applied to (as specified by their selectors).
+  =The CSS rules are then applied to the DOM tree, resulting in a render tree=
+** Getting started with CSS
+
+
+
+
+
+

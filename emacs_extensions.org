@@ -1438,6 +1438,260 @@ In general, when you intend to discard a marker object m (meaning that you no lo
 (set-marker m nil)
 #+end_src
 
+* Searching and Modifying Buffer
+
+** Inserting the Current Time
+
+placed a timestamp in the comment because it could be useful when editing that code in the future to look back and see when this change was made.
+
+the function ~current-time-string~ yields today's date and time as a string
+
+#+begin_src emacs-lisp
+  (defun insert-current-time () 
+      "Insert the current time" 
+      (interactive "*") 
+      (insert (current-time-string)))
+
+  ;;Happily, we can get finer control if we're willing to do a little extra work. Emacs includes a few other time-related functions, notably current-time, which yields the current time in a raw form, and format-time-string, which can take such a time and format it in a wide variety of ways (in the style of C's strftime).
+
+  ;;For a complete list of format codes, use describe-function on format-time-string.)
+  (format-time-string "%1 %M %p" (current-time))
+#+end_src
+
+We can also easily permit the format used by each to be user-configurable, based on a configuration variable the user can set. Let's call the two functions ~insert-time and insert-date~. The corresponding configuration variables will be ~insert-time-format and insert-date-format.~
+
+** User Options and Docstrings :lisp:
+
+ define the variables
+
+ #+begin_src emacs-lisp
+
+   (defvar insert-time-format "%X" "*Format for \\[insert-time] (c.f. format-time-string').") 
+   (defvar insert-date-format "%x" "*Format for \\[insert-date] (c.f. 'format-time-string').")
+
+ #+end_src
+
+=There are two new things to note about these docstrings.=
+
+=First, each begins with an asterisk (*). A leading asterisk has special meaning in defvar docstrings. It means that the variable in question is a user option.=
+
+user option
+
+User options can be set interactively using =set-variable=, which prompts the user for a variable name (with completion of partially typed names) and a value.
+
+=To set variables interactively when they aren't user options=, you must do something like
+
+~M-: (setq variable value) RET~
+
+User options, but not other variables, can be edited en masse using the ~option-editing mode~ available as ~M-x edit-options RET.~
+
+=The second new thing about these docstrings is that each contains the special construct \[command]. (Yes, it's \[. . . ], but since it's written inside a Lisp string, the backslash has to be doubled: \\[. . . ].) This syntax is magic. When the docstring is displayed to the user-such as when the user uses apropos or describe-variable—\ [command] is replaced with a representation of a keybinding that invokes command.=
+
+For example, if C-x t invokes insert-time, then the docstring
+
+"*Format for \\[insert-time] (c.f. 'format-time-string')."
+
+is displayed as
+
+*Format for C-x t (c.f. 'format-time-string').
+
+If there is no keybinding for insert-time, then M-x insert-time is used. If there are two or more keybindings for insert-time, Emacs chooses one.
+
+Suppose you want the string \[insert-time] to appear literally in a docstring. How could you prevent its keybinding being substituted? For this purpose there is a special escape sequence: ~\=~. When ~\=~ precedes ~\[. . .~ , the magic replacement of \[. . . ] doesn't happen. Of course, Lisp string syntax dictates that this be written as "~. . . \\=\\[. . . . . .~".
+
+\= is also useful for escaping the =asterisk at the beginning of a defvar docstring=, if you don't want the variable to be a user option but you absolutely must have a docstring that begins with an asterisk.
+
+=All variables that are shared between two or more functions should be declared with defvar.=
+
+=Which of those should be user options? A rule of thumb is that if the variable directly controls a user-visible feature that a user might want to change, and if setting that variable is straightforward (i.e., no complex data structures or specially coded values), then it should be a user option.=
+
+** More Asterisk Magic :lisp:
+
+#+begin_src emacs-lisp
+(defun insert-time () 
+    "Insert the current time according to insert-time-format." 
+    (interactive "*") 
+    (insert (format-time-string insert-time-format 
+    (current-time)))) 
+ 
+ (defun insert-date () 
+    "Insert the current date according to insert-date-format."
+    (interactive "*") 
+    (insert (format-time-string insert-date-format 
+    (current-time))))
+#+end_src
+
+=The insert function takes any number of arguments (which must all be strings or characters) and inserts them one after another in the current buffer at the present location of point, moving point forward.=
+
+~(interactive)~
+=By now you know that interactive turns a function into a command and specifies how to obtain the function's arguments when invoked interactively.=
+
+But we haven't seen * in the argument of interactive before, and besides, these functions take no arguments, so why does interactive have one?
+
+=The asterisk, when it is the first character in an interactive argument, means "abort this function if the current buffer is read-only."=
+
+A more complicated function, though, might cause irreversible side effects (such as changing global variables), expecting to be able to finish, before discovering that it can't.
+
+** Writestamps
+
+Inserting the current date and time automatically and in such a configurable format is pretty neat
+and probably beyond the ken of most text editors, but its usefulness is limited. Undoubtedly more useful would be the ability to store a writestamp in a file; that is, the date and/or time the file was last written to disk. A writestamp updates itself each time the file is saved anew
+
+*** Updating Writestamps
+
+The first thing we'll need is a way to run our writestamp-updating code each time the file is saved.
+
+=As we discovered in the section "Hooks" in Chapter 2, the best way to associate some code with a common action (such as saving a file) is by adding a function to a hook variable, provided that a suitable hook variable exists.=
+
+~M-x apropos RET hook RET~
+
+=after-save-hook, local-write-file-hooks, write-contents-hooks, and write-file-hooks=
+
+The most straightforward approach is to surround each writestamp with a distinguishing string of characters that we can search for.
+
+Let's say that each writestamp is surrounded by the strings "WRITESTAMP((" on the left and "))" on the right, so that in a file it looks something like this:
+
+WRITESTAMP((12:19pm 7 Jul 96))
+
+Let's say that the stuff inside the WRITESTAMP ((. . . )) is put there by ~insert-date~ (which we defined earlier) and so its format can be controlled with ~insert-date-format~.
+
+#+begin_src emacs-lisp
+  (add-hook 'local-write-file-hooks 'update-writestamps) 
+
+  (defun update-writestamps () 
+     "Find writestamps and replace them with the current time." 
+     ;;What save-excursion does is memorize the position of the cursor, execute the subexpressions it's given as arguments, then restore the cursor to its original position.
+     ;;It's useful in this case because the body of the function is going to move the cursor all over the buffer, but by the time the function finishes we'd like the caller of this function to perceive no cursor motion.
+     (save-excursion 
+        ;; This is like save-excursion in that it memorizes some information, then executes its arguments, then restores the information.
+        ;;The information in this case is the buffer's restriction, which is the result of narrowing.
+        ;;Since update-writestamps is going to call widen, which undoes the effect of any narrowing, we need save-restriction in order to clean up after ourselves.
+         (save-restriction 
+             ;;like save-excursion and save-restriction, memorizes some information, executes its arguments, then restores the information.
+             ;;This time the information in question is the result of the latest search.
+             ;;Each time a search occurs, information about the result of the search is stored in some global variables (as we will see shortly).
+             ;;Each search wipes out the result of the previous search.
+             ;;Our function will perform a search, but for the sake of other functions that might be calling ours, we don't want to disrupt the global match data.
+             (save-match-data 
+                 ;;As previously mentioned, this undoes any narrowing in effect.
+                 ;;It makes the entire buffer accessible, which is necessary if every writestamp is to be found and updated.
+                 (widen) 
+                 (goto-char (point-min)) 
+                 ;;The nil means the search is not bounded except by the end of the buffer.
+                 ;;The t means that if no match is found, search-forward should simply return nil.
+                 ;;  Without the t, search-forward signals an error, aborting the current command, if no match is found.
+                 (while (search-forward "WRITESTAMP((" nil t) 
+                     (let ((start (point))) 
+                     (search-forward "))") 
+                     (delete-region start (- (point) 2))
+                     (goto-char start) 
+                     (insert-date)))))) 
+        ;;This is the function's return value.
+        ;;The final expression of update-writestamps, after the call to save-excursion, is nil
+         nil)
+#+end_src
+
+=The return value of a Lisp function is simply the value of the last expression in the function's body.=
+
+(All Lisp functions return a value, but so far every function we've written has done its job via "side effects" instead of by returning meaningful values.)
+
+The reason is that functions in local-write-file-hooks are treated specially.
+
+Normally, the return value of a function in a hook variable doesn't matter.
+
+But for functions in =local-write-file-hooks= (also in write-file-hooks and write-contents-hooks), =a non-nil return value means, "This hook function has taken over the job of writing the buffer to a file." If the hook function returns a non-nil value, the remaining functions in the hook variables are not called, and Emacs does not write the buffer to a file itself after the hook functions run.= Since update-writestamps is not taking over the job of writing the buffer to a file, we want to be sure it returns nil.
+
+** Generalizing Writestamps
+
+This approach to implementing writestamps works, but there are a few problems.
+
+=First, by hardwiring the strings "WRITESTAMP((" and "))" we've doomed the user to an unaesthetic and inflexible way to distinguish writestamps in text.=
+
+=Second, the user's preference might not be to use insert-date for writestamps.=
+
+* Lisp Files
+- =Code in .emacs is always executed when Emacs starts up=, even if it is never needed in a given session. This makes startup time longer and consumes memory.
+
+=By contrast, a separate file of Lisp code can be loaded only when and if needed.=
+
+- =Code in .emacs typically isn't byte-compiled.=
+
+=Bytecompiled Lisp files usually have names ending in .elc= ("Emacs Lisp, compiled"), while =their non-compiled counterparts usually have names ending in .el ("Emacs Lisp")=.
+
+** Creating a Lisp File
+
+touch xxx.el
+
+Lisp files should be written such that they can be loaded at any time, even multiple times, without unwanted side-effects.
+
+One such side-effect would be including (make-local-hook 'after-change-functions) in xxx.el, then loading xxx.el while the current buffer is not the one whose after-change-functions you want to make local.
+
+** Loading the File
+
+This is done by =loading= the file, which causes Emacs to read and execute its contents.
+
+There are many ways to load Lisp files in Emacs: interactively, non-interactively, explicitly, implicitly, and with and without pathsearching.
+
+*** Finding Lisp Files
+
+Emacs can load files based on full path names such as /usr/local/share/emacs/ site-lisp/foo.el, but it is usually more convenient to use only a file's base name, bo.el, and let Emacs find it among the directories in the =loadpath=.
+
+=The load path is simply a list of directories that Emacs searches for files to load, very much like the way the UNIX shell uses the environment variable PATH to find programs to execute. Emacs's load path is stored as a list of strings in the Lisp variable load-path.=
+
+("/usr/local/share/emacs/19.34/site-lisp" 
+ "/usr/local/share/emacs/site-lisp" 
+ "/usr/local/share/emacs/19.34/lisp")
+
+To add a directory to the beginning of load-path, use
+
+#+begin_src emacs-lisp
+(setq load-path 
+ (cons "/your/directory/here" 
+    load-path))
+#+end_src
+
+To add a directory to the end, use
+
+#+begin_src emacs-lisp
+
+  (setq load-path 
+   (append load-path 
+    ("/your/directory/here")))
+
+#+end_src
+
+If you ask Emacs to find a Lisp file in the load path and you omit the suffix of the file for which you're looking-e.g., you specify foo instead of foo.el-Emacs first looks for foo.elc, the byte-compiled form of foo.el. If that's not found in the load path, then foo.el is tried, followed by plain foo.
+
+=It's usually best to omit the suffix when specifying a file to load.=
+
+Not only does it get you that useful search behavior, but it helps ~eval-after-load~ to work properly (see the section about eval-after-load later in this chapter).
+
+*** Interactive Loading
+
+~load-file~
+
+=When you type M-x load-file RET, Emacs prompts you for the full pathname of a Lisp file (e.g., /home/bobg/emacs/foo.el) and does not search load-path.=
+
+~load-library~
+
+=Emacs prompts you for just the base name of the library (e.g, foo) and attempts to find it in load-path.=
+
+*** Programmatic Loading
+
+When loading files from Lisp code, you may choose =explicit loading, conditional loading, or autoloading.=
+
+**** Explicit loading
+
+Files are loaded explicitly by calling ~load~ (which works like the interactive load-library) or ~load-file~.
+
+#+begin_src emacs-lisp
+  ;;searches load-path for lazy-lock.elc, lazy-lock.el, or lazy-lock
+  (load "lazy-lock")
+
+  ;;doesn't use load-path.
+  (load-file "/home/bobg/emacs/lazy-lock.elc")
+#+end_src
+
 * Lisp
 
 =!!! 可以看成一个有返回值的函数 ()是一个有返回值的表达式=
@@ -1641,6 +1895,38 @@ check =The right way to bind keystroke to command=
     ;;(function arg ...)
     (Lisp Expression))
 #+end_src
+
+*** function return value
+
+#+begin_src emacs-lisp
+  (add-hook 'local-write-file-hooks 'update-writestamps) 
+
+  (defun update-writestamps () 
+     (save-excursion 
+         (save-restriction 
+             (save-match-data 
+                 (widen) 
+                 (goto-char (point-min)) 
+                 (while (search-forward "WRITESTAMP((" nil t) 
+                     (let ((start (point))) 
+                     (search-forward "))") 
+                     (delete-region start (- (point) 2))
+                     (goto-char start) 
+                     (insert-date)))))) 
+        ;;This is the function's return value.
+        ;;The final expression of update-writestamps, after the call to save-excursion, is nil
+         nil)
+#+end_src
+
+=The return value of a Lisp function is simply the value of the last expression in the function's body.=
+
+(All Lisp functions return a value, but so far every function we've written has done its job via "side effects" instead of by returning meaningful values.)
+
+The reason is that functions in local-write-file-hooks are treated specially.
+
+Normally, the return value of a function in a hook variable doesn't matter.
+
+But for functions in =local-write-file-hooks= (also in write-file-hooks and write-contents-hooks), =a non-nil return value means, "This hook function has taken over the job of writing the buffer to a file." If the hook function returns a non-nil value, the remaining functions in the hook variables are not called, and Emacs does not write the buffer to a file itself after the hook functions run.= Since update-writestamps is not taking over the job of writing the buffer to a file, we want to be sure it returns nil.
 
 ** nil :lisp:
 *** It designates falsehood
@@ -2151,3 +2437,75 @@ In general, when you intend to discard a marker object m (meaning that you no lo
 #+begin_src emacs-lisp
 (set-marker m nil)
 #+end_src
+
+** User Options and Docstrings :lisp:
+
+ define the variables
+
+ #+begin_src emacs-lisp
+
+   (defvar insert-time-format "%X" "*Format for \\[insert-time] (c.f. format-time-string').") 
+   (defvar insert-date-format "%x" "*Format for \\[insert-date] (c.f. 'format-time-string').")
+
+ #+end_src
+
+=There are two new things to note about these docstrings.=
+
+=First, each begins with an asterisk (*). A leading asterisk has special meaning in defvar docstrings. It means that the variable in question is a user option.=
+
+user option
+
+User options can be set interactively using =set-variable=, which prompts the user for a variable name (with completion of partially typed names) and a value.
+
+=To set variables interactively when they aren't user options=, you must do something like
+
+~M-: (setq variable value) RET~
+
+User options, but not other variables, can be edited en masse using the ~option-editing mode~ available as ~M-x edit-options RET.~
+
+=The second new thing about these docstrings is that each contains the special construct \[command]. (Yes, it's \[. . . ], but since it's written inside a Lisp string, the backslash has to be doubled: \\[. . . ].) This syntax is magic. When the docstring is displayed to the user-such as when the user uses apropos or describe-variable—\ [command] is replaced with a representation of a keybinding that invokes command.=
+
+For example, if C-x t invokes insert-time, then the docstring
+
+"*Format for \\[insert-time] (c.f. 'format-time-string')."
+
+is displayed as
+
+*Format for C-x t (c.f. 'format-time-string').
+
+If there is no keybinding for insert-time, then M-x insert-time is used. If there are two or more keybindings for insert-time, Emacs chooses one.
+
+Suppose you want the string \[insert-time] to appear literally in a docstring. How could you prevent its keybinding being substituted? For this purpose there is a special escape sequence: ~\=~. When ~\=~ precedes ~\[. . .~ , the magic replacement of \[. . . ] doesn't happen. Of course, Lisp string syntax dictates that this be written as "~. . . \\=\\[. . . . . .~".
+
+\= is also useful for escaping the =asterisk at the beginning of a defvar docstring=, if you don't want the variable to be a user option but you absolutely must have a docstring that begins with an asterisk.
+
+=All variables that are shared between two or more functions should be declared with defvar.=
+
+=Which of those should be user options? A rule of thumb is that if the variable directly controls a user-visible feature that a user might want to change, and if setting that variable is straightforward (i.e., no complex data structures or specially coded values), then it should be a user option.=
+
+** More Asterisk Magic :lisp:
+
+#+begin_src emacs-lisp
+(defun insert-time () 
+    "Insert the current time according to insert-time-format." 
+    (interactive "*") 
+    (insert (format-time-string insert-time-format 
+    (current-time)))) 
+ 
+ (defun insert-date () 
+    "Insert the current date according to insert-date-format."
+    (interactive "*") 
+    (insert (format-time-string insert-date-format 
+    (current-time))))
+#+end_src
+
+=The insert function takes any number of arguments (which must all be strings or characters) and inserts them one after another in the current buffer at the present location of point, moving point forward.=
+
+~(interactive)~
+=By now you know that interactive turns a function into a command and specifies how to obtain the function's arguments when invoked interactively.=
+
+But we haven't seen * in the argument of interactive before, and besides, these functions take no arguments, so why does interactive have one?
+
+=The asterisk, when it is the first character in an interactive argument, means "abort this function if the current buffer is read-only."=
+
+A more complicated function, though, might cause irreversible side effects (such as changing global variables), expecting to be able to finish, before discovering that it can't.

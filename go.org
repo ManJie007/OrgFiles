@@ -1,0 +1,5935 @@
+#+author: JIE MAN
+#+title: go
+* Download and install
+TODO
+* Example of Hello World
+Enable dependency tracking for your code
+=go.mod= file tracks the modules that provide packages.
+~go mod init name~ name is the module's module path.
+=the module path will typically be the repository location where your source code will be kept.=
+eg:github.com/mymodule
+=If you plan to publish your module for others to use, the module path must be a location from which Go tools can download your module.=
+[[https://go.dev/doc/modules/managing-dependencies#naming_module][Managing dependencies]]
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("Hello, World!")
+}
+#+end_src
+
+1.Declare a main package, a package it's made up of all the files in the same directory
+2.[[https://pkg.go.dev/fmt/][fmt package]] is one of the [[https://pkg.go.dev/std][standard library]] packages
+3.A main function executes by default when you run the main package.
+
+~go run .~
+~go help~
+* Use an external package
+1.search on =pkg.go.dev= site to find published modules
+2.import in your Go code
+
+#+begin_src go
+package main
+
+import "fmt"
+
+import "rsc.io/quote"
+
+func main() {
+    fmt.Println(quote.Go())
+}  
+#+end_src
+
+3.Add new module requirements and sums.
+~go mod tidy~
+it located and downloaded module that contains the package you imported.
+=go.sum= file for use in authenticating the module.
+
+4.Run your code
+~go run .~  
+* Create a Go module
+[[https://go.dev/doc/modules/developing][Developing and publishing modules]]
+
+Go code -> packages -> modules
+
+~mkdir greetings;cd greetings~
+~go mod init example.com/greetings~
+  ~go mod init name~ name is the module's module path.
+  =the module path will typically be the repository location where your source code will be kept.=
+  =If you plan to publish your module for others to use, the module path must be a location from which Go tools can download your module.=
+  [[https://go.dev/doc/modules/managing-dependencies#naming_module][Managing dependencies]]
+  creates =go.mod= file to track your code's dependencies.
+
+greetings.go
+#+begin_src go
+package greetings
+
+import "fmt"
+
+// Hello returns a greeting for the named person.
+func Hello(name string) string {
+	//Return a greeting that embeds the name in message.
+	message := fmt.Sprintf("Hi, %v. Welcomes!", name)
+	return message
+}
+#+end_src
+=Declare a greetings package to collect related functions.=
+=Exported name=, In Go, a function whose name =starts with a capital letter= can be called by a function =not in= the same package.
+[[https://go.dev/tour/basics/3][Exported names]]
+~func func_name(parameter parameter_type) return_type~
+~:=~ operator,a shortcut for declaring and initializing a variable in one line
+  =Go uses the value on the right to determine the variable's type=
+  or
+  ~var message string~
+  ~message = fmt.Sprintf("Hi, %v. Welcomes!", name)~
+* Call your code from another module
+~cd ..~
+~mkdir hello;cd hello~
+~go mod init example.com/hello~
+  ~go mod init name~ name is the module's module path.
+  =the module path will typically be the repository location where your source code will be kept.=
+  =If you plan to publish your module for others to use, the module path must be a location from which Go tools can download your module.=
+  [[https://go.dev/doc/modules/managing-dependencies#naming_module][Managing dependencies]]
+  creates =go.mod= file to track your code's dependencies.
+
+hello.go
+#+begin_src go
+package main
+
+import (
+	"fmt"
+
+	"example.com/greetings"
+)
+
+func main() {
+	//Get a greeting message and print it.
+	message := greetings.Hello("Gladys")
+	fmt.Println(message)
+}
+#+end_src
+
+=In Go, code executed as an application must be in a main package.=
+注意 =Exported name=
+
+=For production use=
+  =you’d publish the example.com/greetings module from its repository (with a module path that reflected its published location), where Go tools could find it to download it.=
+=For now, because you haven't published the module yet=
+  ~go mod edit -replace example.com/greetings=../greetings~
+  =go.mod= file include a [[https://go.dev/doc/modules/gomod-ref#replace][replace directive]]
+
+~go mod tidy~
+synchronize the example.com/hello module's dependencies, adding those required by the code
+added a [[https://go.dev/doc/modules/gomod-ref#require][require directive]] in =go.mod=
+
+hello/go.mod
+  module example.com/hello
+  go 1.24.1
+  replace example.com/greetings => ../greetings
+  require example.com/greetings v0.0.0-00010101000000-000000000000
+
+=The number following the module path is a pseudo-version number -- a generated number used in place of a semantic version number (which the module doesn't have yet).=
+=To reference a published module=
+  =go.mod= file would typically omit the =replace= directive and use a =require= directive with a tagged version number at the end.
+[[https://go.dev/doc/modules/version-numbers][Module version numbering]]
+
+~go run .~
+* Return and handle an error
+greetings/greetings.go
+
+#+begin_src go
+package greetings
+
+import (
+	"errors"
+	"fmt"
+)
+
+// Hello returns a greeting for the named person.
+func Hello(name string) (string, error) {
+	//If no name was given, return an error with a message.
+	if name == "" {
+		return "", errors.New("empty name")
+	}
+
+	//If a name was received, return a value that embeds the name
+	//in a greeting message.
+	message := fmt.Sprintf("Hi, %v. Welcomes!", name)
+	return message, nil
+}
+#+end_src
+
+=caller will check the second value to see if an error occurred=
+
+=Any Go function can return multiple values.= [[https://go.dev/doc/effective_go.html#multiple-returns][Effective Go]]
+
+Go standard library =errors= package
+
+hello/hello.go
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"example.com/greetings"
+)
+
+func main() {
+	//Set properties of the predefined Logger, including
+	//the log entry prefix and a flag to disable printing
+	//the time, source file, and line number.
+	log.SetPrefix("greetings: ")
+	log.SetFlags(0)
+
+	//Get a greeting message and print it.
+	message, err := greetings.Hello("")
+	// If an error was returned, print it to the console and
+	// exit the program.
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	//If no error was returned, print the returned message
+	//to the console.
+	fmt.Println(message)
+}
+#+end_src
+
+=standard library's log package=
+If you get an error, you use the log package's [[https://pkg.go.dev/log?tab=doc#Fatal][Fatal function]] to print the error and =stop the program.=
+
+~go run .~
+
+=That's common error handling in Go: Return an error as a value so the caller can check for it.=
+* Go slice
+=A slice is like an array, except that its size changes dynamically as you add and remove items.=
+=The slice is one of Go's most useful types.=
+** [[https://go.dev/blog/slices-intro][Go slices]]
+
+Arrays
+  ~var a [4]int~
+  ~a[0] = 1~
+  ~i := a[0]~
+  An array’s size is =fixed=
+  =Arrays do not need to be initialized explicitly;=
+  Go’s array variable denotes the entire array;
+    =it is not a pointer to the first array element (as would be the case in C).=
+    不是c语言中的指向第一个元素的指针
+    =when you assign or pass around an array value you will make a copy of its contents.=
+    有点像cpp的对象 拷贝复制了
+    To avoid the copy you could pass a =pointer= to the array
+  =you can have the compiler count the array elements for you:=
+    ~b := [...]string{"Penn", "Teller"}~
+
+Slices
+  slice's type specification =[]T=
+  a slice type has =no specified length.=
+  1.A slice =literal= is declared just like an array =literal=, except you =leave out the element count=
+    ~letters := []string{"a", "b", "c", "d"}~
+  2.created with the built-in function called =make=
+    ~func make([]T, len, cap) []T~
+    eg:
+      ~var s []byte~
+      ~s = make([]byte, 5, 5)~
+      ~//s == []byte{0, 0, 0, 0, 0}~
+  =When the capacity argument is omitted, it defaults to the specified length.=
+  built-in =len= and =cap= functions
+    ~len(s)~ ~cap(s)~
+  3.A slice can also be formed by =“slicing” an existing slice or array.=
+    ~b := []byte{'g', 'o', 'l', 'a', 'n', 'g'}~
+    ~// b[1:4] == []byte{'o', 'l', 'a'}, sharing the same storage as b~
+    =左闭右开区间=
+    ~// b[:2] == []byte{'g', 'o'}~
+    ~// b[2:] == []byte{'l', 'a', 'n', 'g'}~
+    ~// b[:] == b~
+    ~s := x[:] // a slice referencing the storage of x~
+
+  Slice internals
+    [ptr: *Elem][len: int][cap : int]
+
+  =Slicing does not copy the slice’s data.=
+   =Therefore, modifying the elements (not the slice itself) of a re-slice modifies the elements of the original slice=
+
+  =Earlier we sliced s to a length shorter than its capacity. We can grow s to its capacity by slicing it again=
+    ~s = s[:cap(s)]~
+    =A slice cannot be grown beyond its capacity.=
+    =Attempting to do so will cause a runtime panic=
+
+  Growing slices
+    To increase the capacity of a slice
+      1.must create a new, larger slice
+      2.copy the contents of the original slice into it.
+
+      #+begin_src go
+      t := make([]byte, len(s), (cap(s)+1)*2) // +1 in case cap(s) == 0
+      for i := range s {
+              t[i] = s[i]
+      }
+      s = t
+      #+end_src
+
+     The looping piece of this common operation is made easier by the built-in =copy= function.
+
+     ~func copy(dst, src []T) int~
+       It returns the number of elements copied.
+       =The copy function supports copying between slices of different lengths (it will copy only up to the smaller number of elements).=
+       can handle source and destination slices that share the same underlying array
+       handling overlapping slices correctly
+
+       #+begin_src go
+       t := make([]byte, len(s), (cap(s) + 1) * 2)
+       copy(t, s)
+       s = t
+       #+end_src
+
+     A common operation is to append data to the end of a slice.
+       growing the slice if necessary
+       
+       #+begin_src go
+       func AppendByte(slice []byte, data ...byte) []byte {
+           m := len(slice)
+           n := m + len(data)
+           if n > cap(slice) { // if necessary, reallocate
+               // allocate double what's needed, for future growth.
+               newSlice := make([]byte, (n+1)*2)
+               copy(newSlice, slice)
+               slice = newSlice
+           }
+           slice = slice[0:n]
+           copy(slice[m:n], data)
+           return slice
+       }
+       #+end_src
+
+       One could use =AppendByte=
+
+       #+begin_src go
+       p := []byte{2, 3, 5}
+       p = AppendByte(p, 7, 11, 13)
+       // p == []byte{2, 3, 5, 7, 11, 13}
+       #+end_src
+
+       Go provides a built-in =append= function
+       ~func append(s []T, x ...T) []T~
+         grows the slice if a greater capacity is needed.
+         ~a := make([]int, 1)~
+         ~// a == []int{0}~
+         ~a = append(a, 1, 2, 3)~
+         ~// a == []int{0, 1, 2, 3}~
+
+       To append one slice to another, use =...= to expand the second argument to =a list of arguments.=
+         #+begin_src go
+         a := []string{"John", "Paul"}
+         b := []string{"George", "Ringo", "Pete"}
+         a = append(a, b...) // equivalent to "append(a, b[0], b[1], b[2])"
+         // a == []string{"John", "Paul", "George", "Ringo", "Pete"}
+         #+end_src
+ 
+ Filter returns a new slice holding only the elements of s that satisfy fn()
+   #+begin_src go
+   func Filter(s []int, fn func(int) bool) []int {
+       var p []int // == nil
+       for _, v := range s {
+           if fn(v) {
+               p = append(p, v)
+           }
+       }
+       return p
+   }
+   #+end_src
+
+ A possible “gotcha”
+   re-slicing a slice doesn’t make a copy of the underlying array.
+   The full array will be kept in memory until it is no longer referenced.
+   this can cause the program to hold all the data in memory when only a small piece of it is needed.
+
+   #+begin_src go
+   var digitRegexp = regexp.MustCompile("[0-9]+")
+   
+   func FindDigits(filename string) []byte {
+       b, _ := ioutil.ReadFile(filename)
+       return digitRegexp.Find(b)
+   }
+   #+end_src
+
+   returned =[]byte points into an array containing the entire file.=
+   the few useful bytes of the file keep the entire contents in memory.
+   =bad!!!=
+
+   #+begin_src go
+   func CopyDigits(filename string) []byte {
+       b, _ := ioutil.ReadFile(filename)
+       b = digitRegexp.Find(b)
+       c := make([]byte, len(b))
+       copy(c, b)
+       return c
+   }
+   #+end_src
+
+   以c/cpp的思想来思考 内存的形式 + 对象的生命周期！！！
+   我觉得可以看做是cpp的智能指针
+
+Further Reading
+  [[https://go.dev/doc/effective_go.html][Effective Go]]
+** Return a random greeting
+
+greetings/greetings.go
+
+#+begin_src go
+package greetings
+
+import (
+	"errors"
+	"fmt"
+	"math/rand"
+)
+
+// Hello returns a greeting for the named person.
+func Hello(name string) (string, error) {
+	//If no name was given, return an error with a message.
+	if name == "" {
+		return "", errors.New("empty name")
+	}
+
+	//If a name was received, return a value that embeds the name
+	//in a greeting message.
+	message := fmt.Sprintf(randomFormat(), name)
+	return message, nil
+}
+
+// randomFormat returns one of a set of greeting messages. The returned
+// message is selected at random.
+func randomFormat() string {
+	// A slice of message formats;
+	formats := []string{
+		"Hi, %v. Weclome!",
+		"Great to see you, %v!",
+		"Hail, %v! Well met!",
+	}
+
+	// Return a randomly selected message format by specifying
+	// a random index for the slice of formats.
+	return formats[rand.Intn(len(formats))]
+}
+#+end_src
+
+randomFormat starts with a =lowercase letter=, making it =accessible only to code in its own package=
+=it's not exported=
+
+=[]string= tells Go that the size of the array underlying =the slice can be dynamically changed.=
+
+hello/hello.go
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"example.com/greetings"
+)
+
+func main() {
+	//Set properties of the predefined Logger, including
+	//the log entry prefix and a flag to disable printing
+	//the time, source file, and line number.
+	log.SetPrefix("greetings: ")
+	log.SetFlags(0)
+
+	//Get a greeting message and print it.
+	message, err := greetings.Hello("Gladys")
+	// If an error was returned, print it to the console and
+	// exit the program.
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	//If no error was returned, print the returned message
+	//to the console.
+	fmt.Println(message)
+}
+#+end_src
+
+~go run .~
+* map
+
+handle a multiple-value input, then pair values in that input with a multiple-value output.
+
+greetings/greetings.go
+
+#+begin_src go
+package greetings
+
+import (
+	"errors"
+	"fmt"
+	"math/rand"
+)
+
+// Hello returns a greeting for the named person.
+func Hello(name string) (string, error) {
+	//If no name was given, return an error with a message.
+	if name == "" {
+		return "", errors.New("empty name")
+	}
+
+	//If a name was received, return a value that embeds the name
+	//in a greeting message.
+	message := fmt.Sprintf(randomFormat(), name)
+	return message, nil
+}
+
+// Hellos returns a map that associates each of the named people
+// with a greeting message.
+func Hellos(names []string) (map[string]string, error) {
+	// A map to associate names with messages.
+	messages := make(map[string]string)
+
+	for _, name := range names {
+		message, err := Hello(name)
+		if err != nil {
+			return nil, err
+		}
+		// In the map, associate the retrieved message with
+		// the name.
+		messages[name] = message
+	}
+
+	return messages, nil
+}
+
+// randomFormat returns one of a set of greeting messages. The returned
+// message is selected at random.
+func randomFormat() string {
+	// A slice of message formats;
+	formats := []string{
+		"Hi, %v. Weclome!",
+		"Great to see you, %v!",
+		"Hail, %v! Well met!",
+	}
+
+	// Return a randomly selected message format by specifying
+	// a random index for the slice of formats.
+	return formats[rand.Intn(len(formats))]
+}
+#+end_src
+
+=Hellos= function whose parameter is a slice of names rather than a single name.
+
+initialize a map by ~make(map[key-type]value-type)~
+
+** [[https://go.dev/blog/maps][Go maps in action]]
+
+hash table
+
+offer fast lookups, adds, and deletes.
+
+A Go map type =map[KeyType]ValueType=
+
+KeyType any type [[https://go.dev/ref/spec#Comparison_operators][comparable]]
+
+~var m map[string][int]~
+=reference type=, like pointers or slices
+the value of m above is =nil; it doesn’t point to an initialized map.=
+A nil map behaves
+  an empty map when reading
+  attempts to write to a nil map will cause a runtime panic;
+
+initialize a map ~m = make(map[string]int)~
+
+~m["route"] = 66~
+~i := m["route"]~
+~j := m["root"] //j == 0~
+~n := len(m)~ The built in len function returns on the number of items in a map
+
+~delete(m, "route")~ The built in delete function removes an entry from the map:
+  will do nothing if the specified key doesn’t exist.
+
+~i, ok := m["route"]~
+  the first value (i) is assigned the value stored under the key "route".
+  =The second value (ok) is a bool that is true if the key exists in the map, and false if not.=
+~_, ok :- m["route"]~
+  To test for a key without retrieving the value, use an underscore in place of the first value
+
+iterate map
+#+begin_src go
+  for key, value := range m {
+  	fmt.Println("Key:", key, "Value:", value)
+  }
+#+end_src
+
+initialize map use a map literal:
+#+begin_src go
+commits := map[string]int{
+    "rsc": 3711,
+    "r":   2138,
+    "gri": 1908,
+    "adg": 912,
+}
+#+end_src
+
+initialize an empty map
+  functionally identical to using the =make= function
+  ~m = map[string]int{}~
+
+Exploiting zero values
+   a map of boolean values can be used as a set-like data structure (recall that the zero value for the boolean type is false).
+   #+begin_src go
+   type Node struct {
+       Next  *Node
+       Value interface{}
+   }
+   var first *Node
+   
+   visited := make(map[*Node]bool)
+   for n := first; n != nil; n = n.Next {
+       if visited[n] {
+           fmt.Println("cycle detected")
+           break
+       }
+       visited[n] = true
+       fmt.Println(n.Value)
+   }
+   #+end_src
+
+   =Appending to a nil slice just allocates a new slice, so it’s a one-liner to append a value to a map of slices;=
+   #+begin_src go
+   type Person struct {
+       Name  string
+       Likes []string
+   }
+   var people []*Person
+
+   likes := make(map[string][]*Person)
+   for _, p := range people {
+       for _, l := range p.Likes {
+           likes[l] = append(likes[l], p)
+       }
+   }
+
+    //To print a list of people who like cheese:
+   for _, p := range likes["cheese"] {
+       fmt.Println(p.Name, "likes cheese.")
+   }
+
+   //To print the number of people who like bacon:
+   fmt.Println(len(likes["bacon"]), "people like bacon.")
+   #+end_src
+
+   =range and len treat a nil slice as a zero-length slice=
+
+Key types
+  map keys any type =comparable=
+  [[https://go.dev/ref/spec#Comparison_operators][language spec]]
+  comparable types are
+    =boolean, numeric, string, pointer, channel, and interface types, and structs or arrays that contain only those types.=
+    =slices, maps, and functions cannot be compared using ===
+
+    ~hits := make(map[string]map[string]int)~
+    Unfortunately, this approach becomes unwieldy when adding data
+    #+begin_src go
+    func add(m map[string]map[string]int, path, country string) {
+        mm, ok := m[path]
+        if !ok {
+            mm = make(map[string]int)
+            m[path] = mm
+        }
+        mm[country]++
+    }
+    add(hits, "/doc/", "au")
+    #+end_src
+
+    On the other hand, a design that uses a single map with =a struct key= does away with all that complexity:
+
+    #+begin_src go
+    type Key struct {
+        Path, Country string
+    }
+    hits := make(map[Key]int)
+    #+end_src
+
+    ~hits[Key{"/", "vn"}]++~
+    ~n := hits[Key{"/ref/spec", "ch"}]~
+
+Concurrency
+  [[https://go.dev/doc/faq#atomic_maps][Maps are not safe for concurrent use]]
+
+  If you need to read from and write to a map from concurrently executing goroutines, the accesses must be mediated by =some kind of synchronization mechanism.=
+
+  One common way
+    [[https://go.dev/pkg/sync/#RWMutex][sync.RWMutex]]
+    #+begin_src go
+      //an anonymous struct containing a map and an embedded sync.RWMutex.
+      var counter = struct{
+              sync.RWMutex
+      	m map[string]int
+      }{m: make(map[string]int)}
+
+      //read from the counter, take the read lock
+      counter.RLock()
+      n := counter.m["some_key"]
+      counter.RUnlock()
+      fmt.Println("some_key:", n)
+
+      //write to the counter, take the write lock
+      counter.Lock()
+      counter.m["some_key"]++
+      counter.Unlock()
+    #+end_src
+
+Iteration order
+  When iterating over a map with a range loop, =the iteration order is not specified and is not guaranteed to be the same from one iteration to the next=
+  If you require a stable iteration order
+    =you must maintain a separate data structure that specifies that order=
+
+    #+begin_src go
+    import "sort"
+    
+    var m map[int]string
+    var keys []int
+    for k := range m {
+        keys = append(keys, k)
+    }
+    sort.Ints(keys)
+    for _, k := range keys {
+        fmt.Println("Key:", k, "Value:", m[k])
+    }
+    #+end_src
+
+** Return greetings for multiple people
+
+greetings/greetings.go
+
+#+begin_src go
+package greetings
+
+import (
+	"errors"
+	"fmt"
+	"math/rand"
+)
+
+// Hello returns a greeting for the named person.
+func Hello(name string) (string, error) {
+	//If no name was given, return an error with a message.
+	if name == "" {
+		return "", errors.New("empty name")
+	}
+
+	//If a name was received, return a value that embeds the name
+	//in a greeting message.
+	message := fmt.Sprintf(randomFormat(), name)
+	return message, nil
+}
+
+// Hellos returns a map that associates each of the named people
+// with a greeting message.
+func Hellos(names []string) (map[string]string, error) {
+	// A map to associate names with messages.
+	messages := make(map[string]string)
+
+	for _, name := range names {
+		message, err := Hello(name)
+		if err != nil {
+			return nil, err
+		}
+		// In the map, associate the retrieved message with
+		// the name.
+		messages[name] = message
+	}
+
+	return messages, nil
+}
+
+// randomFormat returns one of a set of greeting messages. The returned
+// message is selected at random.
+func randomFormat() string {
+	// A slice of message formats;
+	formats := []string{
+		"Hi, %v. Weclome!",
+		"Great to see you, %v!",
+		"Hail, %v! Well met!",
+	}
+
+	// Return a randomly selected message format by specifying
+	// a random index for the slice of formats.
+	return formats[rand.Intn(len(formats))]
+}
+#+end_src
+
+initialize a map ~make(map[key-type]value-type)~
+In this for loop, =range= returns two values: the =index= of the current item in the loop and a =copy= of the item's =value=.
+=Go blank identifier (an underscore) to ignore=
+[[https://go.dev/doc/effective_go.html#blank][The blank identifier]]
+
+hello/hello.go
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"example.com/greetings"
+)
+
+func main() {
+	//Set properties of the predefined Logger, including
+	//the log entry prefix and a flag to disable printing
+	//the time, source file, and line number.
+	log.SetPrefix("greetings: ")
+	log.SetFlags(0)
+
+	// A slice of naems.
+	names := []string{"Gladys", "Samantha", "Darrin"}
+
+	//Request greeting messages for the names.
+	messages, err := greetings.Hellos(names)
+	// If an error was returned, print it to the console and
+	// exit the program.
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	//If no error was returned, print the returned message
+	//to the console.
+	fmt.Println(messages)
+}
+#+end_src
+
+~go run .~
+
+=the idea of preserving backward compatibility by implementing a new function for new or changed functionality in a module.=
+[[https://go.dev/blog/module-compatibility][Keeping your modules compatible]]
+
+* unit test
+
+=Testing your code during development can expose bugs that find their way in as you make changes.=
+
+=naming conventions!!!=, Go's =test= package and ~go test~
+
+Ending a file's name with =_test.go= tells the go =test= command that this file contains =test functions.=
+
+greetings/greetings_test.go
+
+#+begin_src go
+package greetings
+
+import (
+	"regexp"
+	"testing"
+)
+
+// TestHelloName calls greetings.Hello with a name, checking
+// for a valid return value.
+func TestHelloName(t *testing.T) {
+	name := "Gladys"
+	want := regexp.MustCompile(`\b` + name + `\b`)
+	msg, err := Hello("Gladys")
+	if !want.MatchString(msg) || err != nil {
+		t.Errorf(`Hello("Gladys") = %q, %v, want match for %#q, nil`, msg, err, want)
+	}
+}
+
+// TestHelloEmpty calls greetings.Hello with an empty string,
+// checking for an error.
+func TestHelloEmpty(t *testing.T) {
+	msg, err := Hello("")
+	if msg != "" || err == nil {
+		t.Errorf(`Hello("") = %q, %v, want "", error`, msg, err)
+	}
+
+}
+#+end_src
+
+Test function names have the form =TestName=, where Name says something about the specific test.
+
+test functions take a pointer to the testing package's [[https://go.dev/pkg/testing/#T][testing.T type]] as a parameter.
+  for reporting and logging from your test.
+
+t parameter's [[https://go.dev/pkg/testing/#T.Errorf][Errorf method]] to print a message to the console.
+
+~want := regexp.MustCompile(`\b` + name + `\b`)~
+编译正则表达式（编译失败会 panic）
+\b：表示 单词边界
+
+[[https://go.dev/doc/tutorial/add-a-test#:~:text=directory%2C%20run%20the-,go%20test%20command,-to%20execute%20the][go test command]]
+
+~go test~ executes test functions =(whose names begin with Test)=
+          in test files =(whose names end with _test.go)=
+          =-v= get verbose output
+~go test -v~
+
+Break the greetings.Hello function to view a failing test.
+
+greetings/greetings.go
+#+begin_src go
+package greetings
+
+import (
+	"errors"
+	"fmt"
+	"math/rand"
+)
+
+// Hello returns a greeting for the named person.
+func Hello(name string) (string, error) {
+	//If no name was given, return an error with a message.
+	if name == "" {
+		return "", errors.New("empty name")
+	}
+
+	//If a name was received, return a value that embeds the name
+	//in a greeting message.
+	//message := fmt.Sprintf(randomFormat(), name)
+	message := fmt.Sprintf(randomFormat())
+	return message, nil
+}
+
+// Hellos returns a map that associates each of the named people
+// with a greeting message.
+func Hellos(names []string) (map[string]string, error) {
+	// A map to associate names with messages.
+	messages := make(map[string]string)
+
+	for _, name := range names {
+		message, err := Hello(name)
+		if err != nil {
+			return nil, err
+		}
+		// In the map, associate the retrieved message with
+		// the name.
+		messages[name] = message
+	}
+
+	return messages, nil
+}
+
+// randomFormat returns one of a set of greeting messages. The returned
+// message is selected at random.
+func randomFormat() string {
+	// A slice of message formats;
+	formats := []string{
+		"Hi, %v. Weclome!",
+		"Great to see you, %v!",
+		"Hail, %v! Well met!",
+	}
+
+	// Return a randomly selected message format by specifying
+	// a random index for the slice of formats.
+	return formats[rand.Intn(len(formats))]
+}
+#+end_src
+
+* Compile and install the application
+
+[[https://go.dev/cmd/go/#hdr-Compile_packages_and_dependencies][go build command]]
+  compiles the packages, along with their dependencies, but it doesn't install the results.
+[[https://go.dev/ref/mod#go-install][go install command]]
+  compiles and installs the packages.
+
+~go build~
+
+[[https://go.dev/cmd/go/#hdr-List_packages_or_modules][go list command]]
+  discover the install path
+  ~go list -f '{{.Target}}'~
+    go install 后，二进制程序会被安装到这里
+    具体路径取决于你的 GOBIN 或 GOPATH/bin 设置
+
+Add the Go install directory to your system's shell path.
+  ~/.bashrc or ~/.zshrc
+  export PATH=$PATH:/path/to/your/install/directory
+
+[[https://go.dev/cmd/go/#hdr-Print_Go_environment_information][go env command]]
+  change Go variable
+  eg: change the install target by setting the GOBIN variable
+  ~go env -w GOBIN=/path/to/your/bin~
+
+~go install~
+  compile and install the package
+
+* Conclusion
+[[https://go.dev/doc/modules/managing-dependencies][Managing dependencies]]
+[[https://go.dev/doc/modules/developing][Developing and publishing modules]]
+[[https://go.dev/tour/][Tour of Go]]
+
+* [Basics] Packages, variables, and functions
+** Packages
+
+Programs start running in package =main=
+
+By convention, =the package name is the same as the last element of the import path.=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math/rand"
+)
+
+func main() {
+	fmt.Println("My favorite number is", rand.Intn(10))
+}
+#+end_src
+** Imports
+
+#+begin_src go
+import (
+	"fmt"
+	"math"
+)
+#+end_src
+
+good style above
+
+or
+
+#+begin_src go
+import "fmt"
+import "math"
+#+end_src
+
+** Exported names
+
+=In Go, a name is exported if it begins with a capital letter.=
+~math.Pi~
+
+=When importing a package, you can refer only to its exported names.=
+
+Any "unexported" names are not accessible from =outside the package.=
+
+** Functions
+
+[[https://go.dev/blog/gos-declaration-syntax][article on Go's declaration syntax]]
+  C: ~int (*fp)(int (*ff)(int x, int y), int b)~ or ~int (*fp)(int (*)(int, int), int)~
+     ~int (*(*fp)(int (*)(int, int), int))(int, int)~
+     not exactly clear!!!
+
+  Go syntax: =read them left to right=
+     Languages outside the C family ~x : int~
+     Go 为了简洁 去掉 冒号 ~x int~
+     ~f func(func(int,int) int, int) int~
+     ~f func(func(int,int) int, int) func(int, int) int~
+
+     write and invoke closures
+     ~sum := func(a, b int) int { return a+b } (3, 4)~
+
+=the type comes after the variable name.=
+
+~func func_name(parameter parameter_type, ...) return_type~
+
+** Functions continued
+
+When two or more consecutive named function parameters share a type, you can omit the type from all but the last.
+
+~func add(x int, y int) int {return x + y}~
+
+~func add(x, y int) int {return x + y}~
+
+** Multiple results
+
+=function can return any number of results.=
+
+#+begin_src go
+    func swap(x, y string) (string, string) {
+  	return y, x
+  }
+#+end_src
+
+** Named return values
+
+Go's return values may be =named.=
+  =treated as variables defined at the top of the function.=
+
+These names should be used to document the meaning of the return values.
+
+=return= statement without arguments returns =the named return values.=
+
+=should be used only in short functions=
+
+=harm readability in longer functions.=
+
+#+begin_src go
+func split(sum int) (x, y int) {
+ 	x = sum * 4 /9
+ 	y = sum - x
+ 	return
+}  	
+#+end_src
+
+** Variables
+
+=var= statement declares a list of variables;
+
+=var= statement can be at package or function level.
+
+#+begin_src go
+package main
+
+import "fmt"
+
+var c, python, java bool
+
+func main() {
+	var i int
+	fmt.Println(i, c, python, java)
+}
+#+end_src
+
+** Variables with initializers
+
+=var= declaration can include =initializers=, one per variable.
+
+If an =initializer is present=, the =type can be omitted=;
+
+#+begin_src go
+package main
+
+import "fmt"
+
+var i, j int = 1, 2
+
+func main() {
+	var c, python, java = true, false, "no!"
+	fmt.Println(i, j, c, python, java)
+}
+#+end_src
+
+** Short variable declarations
+
+~:=~ short assignment statement can be used in place of a =var declaration with implicit type.=
+
+=Outside a function=, every statement begins with a keyword =(var, func, and so on)= and so the ~:=~ construct is =not available.=
+
+** Basic types
+
+=bool=
+
+=string=
+
+=int int8 int16 int32 int64=
+=uint uint8 uint16 uint32 uint64 uintptr=
+
+=byte= // alias for uint8
+
+=rune= // alias for int32
+       // represents a Unicode code point
+
+=float32 float64=
+
+=complex64 complex128=
+
+that variable declarations may be ="factored" into blocks=, =, as with import statements.=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math/cmplx"
+)
+
+var (
+	ToBe   bool       = false
+	MaxInt uint64     = 1<<64 - 1
+	z      complex128 = cmplx.Sqrt(-5 + 12i)
+)
+
+func main() {
+	fmt.Printf("Type: %T Value: %v\n", ToBe, ToBe)
+	fmt.Printf("Type: %T Value: %v\n", MaxInt, MaxInt)
+	fmt.Printf("Type: %T Value: %v\n", z, z)
+}
+#+end_src
+
+
+The =int, uint, and uintptr= types are usually 32 bits wide on 32-bit systems and 64 bits wide on 64-bit systems.
+
+** Zero values
+
+Variables declared =without an explicit initial value are given their zero value.=
+
+注意和c/cpp区别
+  局部变量不初始化就是随机值
+  全局变量不初始化“零”值
+
+=0= for numeric types,
+=false= for the boolean type, and
+=""= (the empty string) for strings.  
+
+** Type conversions
+
+The expression =T(v)= converts the value v to the type T.
+
+#+begin_src go
+var i int = 42
+var f float64 = float64(i)
+var u uint = uint(f)
+#+end_src
+
+or
+
+#+begin_src go
+i := 42
+f := float64(i)
+u := uint(f)
+#+end_src
+
+=Unlike in C,=
+  in Go assignment between items of =different type requires an explicit conversion.=
+
+** Type inference
+
+When declaring a variable =without specifying an explicit type= (either by using the := syntax or var = expression syntax)
+  the variable's type is =inferred from the value on the right hand side.=
+
+#+begin_src go
+var i int
+j := i // j is an int
+
+// when the right hand side contains an untyped numeric constant,
+// the new variable types depending on the precision of the constant
+i := 42           // int
+f := 3.142        // float64
+g := 0.867 + 0.5i // complex128
+#+end_src  
+
+** Constants
+ =const= keyword
+
+ Constants =cannot be declared= using the := syntax.
+
+#+begin_src go
+package main
+
+import "fmt"
+
+const Pi = 3.14
+
+func main() {
+	const World = "世界"
+	fmt.Println("Hello", World)
+	fmt.Println("Happy", Pi, "Day")
+
+	const Truth = true
+	fmt.Println("Go rules?", Truth)
+}
+#+end_src
+
+** Numeric Constants
+
+Numeric constants are high-precision values.
+
+An untyped constant takes the type needed by its context.
+
+[[*Basic types]]
+  that variable declarations may be ="factored" into blocks=, =, as with import statements.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+const (
+	// Create a huge number by shifting a 1 bit left 100 places.
+	// In other words, the binary number that is 1 followed by 100 zeroes.
+	Big = 1 << 100
+	// Shift it right again 99 places, so we end up with 1<<1, or 2.
+	Small = Big >> 99
+)
+
+func needInt(x int) int { return x*10 + 1 }
+func needFloat(x float64) float64 {
+	return x * 0.1
+}
+
+func main() {
+	fmt.Println(needInt(Small))
+	fmt.Println(needFloat(Small))
+	fmt.Println(needFloat(Big))
+}
+#+end_src
+
+* [Basics] Flow control statements: for, if, else, switch and defer
+** For
+
+Go has only one looping construct
+
+three components:
+  the init statement: executed before the first iteration
+  the condition expression: evaluated before every iteration
+  the post statement: executed at the end of every iteration
+
+=the variables declared there are visible only in the scope of the for statement.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	sum := 0
+	for i := 0; i < 10; i++ {
+		sum += i
+	}
+	fmt.Println(sum)
+}
+#+end_src
+
+** For continued
+
+=The init and post statements are optional.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	sum := 1
+	for ; sum < 1000; {
+		sum += sum
+	}
+	fmt.Println(sum)
+}
+#+end_src
+
+** For is Go's "while"
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	sum := 1
+	for sum < 1000 {
+		sum += sum
+	}
+	fmt.Println(sum)
+}
+#+end_src
+
+** Forever
+
+#+begin_src go
+package main
+
+func main() {
+	for {
+	}
+}
+#+end_src
+
+** If
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+func sqrt(x float64) string {
+	if x < 0 {
+		return sqrt(-x) + "i"
+	}
+	return fmt.Sprint(math.Sqrt(x))
+}
+
+func main() {
+	fmt.Println(sqrt(2), sqrt(-4))
+}
+#+end_src
+
+** If with a short statement
+
+=Variables declared by the statement are only in scope until the end of the if.=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+func pow(x, n, lim float64) float64 {
+	if v := math.Pow(x, n); v < lim {
+		return v
+	}
+	return lim
+}
+
+func main() {
+	fmt.Println(
+		pow(3, 2, 10),
+		pow(3, 3, 20),
+	)
+}
+#+end_src
+
+** If and else
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+func pow(x, n, lim float64) float64 {
+	if v := math.Pow(x, n); v < lim {
+		return v
+	} else {
+		fmt.Printf("%g >= %g\n", v, lim)
+	}
+	// can't use v here, though
+	return lim
+}
+
+func main() {
+	fmt.Println(
+		pow(3, 2, 10),
+		pow(3, 3, 20),
+	)
+}
+#+end_src
+
+** Switch
+
+Go only runs the selected case, not all the cases that follow.
+=不用加break; Go默认每个分支执行完break;=
+
+Another important difference is that Go's switch cases =need not be constants=, and the values involved =need not be integers.=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"runtime"
+)
+
+func main() {
+	fmt.Print("Go runs on ")
+	switch os := runtime.GOOS; os {
+	case "darwin":
+		fmt.Println("OS X.")
+	case "linux":
+		fmt.Println("Linux.")
+	default:
+		// freebsd, openbsd,
+		// plan9, windows...
+		fmt.Printf("%s.\n", os)
+	}
+}
+#+end_src
+
+** Switch evaluation order
+
+=Switch cases evaluate cases from top to bottom, stopping when a case succeeds.=
+
+switch i {
+case 0:
+case f():
+}
+
+does not call f if i==0.
+
+=Time in the Go playground always appears to start at 2009-11-10 23:00:00 UTC=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	fmt.Println("When's Saturday?")
+	today := time.Now().Weekday()
+	switch time.Saturday {
+	case today + 0:
+		fmt.Println("Today.")
+	case today + 1:
+		fmt.Println("Tomorrow.")
+	case today + 2:
+		fmt.Println("In two days.")
+	default:
+		fmt.Println("Too far away.")
+	}
+}
+#+end_src
+
+** Switch with no condition
+
+Switch without a condition is the same as switch =true.=
+
+a clean way to write long if-then-else chains.
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	t := time.Now()
+	switch {
+	case t.Hour() < 12:
+		fmt.Println("Good morning!")
+	case t.Hour() < 17:
+		fmt.Println("Good afternoon.")
+	default:
+		fmt.Println("Good evening.")
+	}
+}
+#+end_src
+
+** Defer
+
+=A defer statement defers the execution of a function until the surrounding function returns.=
+
+The deferred call's arguments are =evaluated immediately.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	defer fmt.Println("world")
+
+	fmt.Println("hello")
+}
+#+end_src
+
+** Stacking defers
+
+=Deferred function calls are pushed onto a stack.=
+
+=last-in-first-out order.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("counting")
+
+	for i := 0; i < 10; i++ {
+		defer fmt.Println(i)
+	}
+
+	fmt.Println("done")
+}
+#+end_src
+
+* [Basics] More types: structs, slices, and maps
+** Pointers
+
+A pointer holds the memory address of a value.
+
+=The & operator generates a pointer to its operand.=
+
+=The * operator denotes the pointer's underlying value.=
+
+=Go has no pointer arithmetic.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	i, j := 42, 2701
+
+	p := &i         // point to i
+	fmt.Println(*p) // read i through the pointer
+	*p = 21         // set i through the pointer
+	fmt.Println(i)  // see the new value of i
+
+	p = &j         // point to j
+	*p = *p / 37   // divide j through the pointer
+	fmt.Println(j) // see the new value of j
+}
+#+end_src
+
+** Structs
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type Vertex struct {
+	X int
+	Y int
+}
+
+func main() {
+	fmt.Println(Vertex{1, 2})
+}
+#+end_src
+
+** Struct Fields
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type Vertex struct {
+	X int
+	Y int
+}
+
+func main() {
+	v := Vertex{1, 2}
+	v.X = 4
+	fmt.Println(v.X)
+}
+#+end_src
+
+** Pointers to structs
+
+Struct fields can be accessed through a struct pointer.
+
+=(*p).X=
+
+the language =permits us instead to write just p.X, without the explicit dereference.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type Vertex struct {
+	X int
+	Y int
+}
+
+func main() {
+	v := Vertex{1, 2}
+	p := &v
+	p.X = 1e9
+	fmt.Println(v)
+}
+#+end_src
+
+** Struct Literals
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type Vertex struct {
+	X, Y int
+}
+
+var (
+	v1 = Vertex{1, 2}  // has type Vertex
+	v2 = Vertex{X: 1}  // Y:0 is implicit
+	v3 = Vertex{}      // X:0 and Y:0
+	p  = &Vertex{1, 2} // has type *Vertex
+)
+
+func main() {
+	fmt.Println(v1, p, v2, v3)
+}
+#+end_src
+
+** Arrays
+
+~var a [10]int~
+
+=arrays cannot be resized.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	var a [2]string
+	a[0] = "Hello"
+	a[1] = "World"
+	fmt.Println(a[0], a[1])
+	fmt.Println(a)
+
+	primes := [6]int{2, 3, 5, 7, 11, 13}
+	fmt.Println(primes)
+}
+#+end_src
+
+** Slices
+
+=dynamically-sized, flexible view into the elements of an array.=
+
+~a[low : high]~
+
+=左开右闭区间=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	primes := [6]int{2, 3, 5, 7, 11, 13}
+
+	var s []int = primes[1:4]
+	fmt.Println(s)
+}
+#+end_src
+
+** Slices are like references to arrays
+
+Changing the elements of a slice modifies the corresponding elements of its underlying array.
+
+Other slices that share the same underlying array will see those changes.
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	names := [4]string{
+		"John",
+		"Paul",
+		"George",
+		"Ringo",
+	}
+	fmt.Println(names)
+
+	a := names[0:2]
+	b := names[1:3]
+	fmt.Println(a, b)
+
+	b[0] = "XXX"
+	fmt.Println(a, b)
+	fmt.Println(names)
+}
+#+end_src
+
+** Slice literals
+
+ like an array literal =without the length.=
+
+ an array literal: ~[3]bool{true, true, false}~
+
+ this creates the same array as above, then builds a slice that references it: ~[]bool{true, true, false}~
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	q := []int{2, 3, 5, 7, 11, 13}
+	fmt.Println(q)
+
+	r := []bool{true, false, true, true, false, true}
+	fmt.Println(r)
+
+	s := []struct {
+		i int
+		b bool
+	}{
+		{2, true},
+		{3, false},
+		{5, true},
+		{7, true},
+		{11, false},
+		{13, true},
+	}
+	fmt.Println(s)
+}
+#+end_src
+
+** Slice defaults
+
+=The default is zero for the low bound and the length of the slice for the high bound.=
+
+~var a [10]int~
+
+equal
+
+#+begin_src go
+a[0:10]
+a[:10]
+a[0:]
+a[:]
+#+end_src
+
+** Slice length and capacity
+
+The length of a slice is the number of elements it contains.
+
+The capacity of a slice is the number of elements in the underlying array, counting from the first element in the slice.
+
+~len(s)~
+
+~cap(s)~
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	s := []int{2, 3, 5, 7, 11, 13}
+	printSlice(s)
+
+	// Slice the slice to give it zero length.
+	s = s[:0]
+	printSlice(s)
+
+	// Extend its length.
+	s = s[:4]
+	printSlice(s)
+
+	// Drop its first two values.
+	s = s[2:]
+	printSlice(s)
+}
+
+func printSlice(s []int) {
+	fmt.Printf("len=%d cap=%d %v\n", len(s), cap(s), s)
+}
+#+end_src
+
+=re-slicing 要根据cap来=
+
+** Nil slices
+
+The zero value of a slice is =nil=.
+
+length : 0
+capacity : 0
+
+** Creating a slice with make
+
+built-in =make= function
+
+~a := make([]int, 5)  // len(a)=5~
+
+specify a capacity, pass a third argument to make:
+
+#+begin_src go
+b := make([]int, 0, 5) // len(b)=0, cap(b)=5
+
+b = b[:cap(b)] // len(b)=5, cap(b)=5
+b = b[1:]      // len(b)=4, cap(b)=4
+#+end_src
+
+** Slices of slices
+
+Slices can contain =any type=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+func main() {
+	// Create a tic-tac-toe board.
+	board := [][]string{
+		[]string{"_", "_", "_"},
+		[]string{"_", "_", "_"},
+		[]string{"_", "_", "_"},
+	}
+
+	// The players take turns.
+	board[0][0] = "X"
+	board[2][2] = "O"
+	board[1][2] = "X"
+	board[1][0] = "O"
+	board[0][2] = "X"
+
+	for i := 0; i < len(board); i++ {
+		fmt.Printf("%s\n", strings.Join(board[i], " "))
+	}
+}
+#+end_src
+
+** Appending to a slice
+
+built-in =append= function.
+
+https://go.dev/pkg/builtin/#append
+
+#+begin_src go
+func append(s []T, vs ...T) []T
+#+end_src
+
+If the backing array of s is too small to fit all the given values a bigger array will be allocated.
+
+The returned slice will point to the newly allocated array.
+
+[[https://go.dev/blog/go-slices-usage-and-internals][Slices: usage and internals]]
+
+** Range
+
+=The range form of the for loop iterates over a slice or map.=
+
+ranging over a slice, return =index= and =a copy of element= at that index.
+
+#+begin_src go
+package main
+
+import "fmt"
+
+var pow = []int{1, 2, 4, 8, 16, 32, 64, 128}
+
+func main() {
+	for i, v := range pow {
+		fmt.Printf("2**%d = %d\n", i, v)
+	}
+}
+#+end_src
+
+** Range continued
+
+You can skip the index or value by assigning to ~_~.
+
+#+begin_src go
+for i, _ := range pow
+for _, value := range pow
+#+end_src
+
+=only want the index, you can omit the second variable.=
+
+#+begin_src go
+for i := range pow
+#+end_src
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	pow := make([]int, 10)
+	for i := range pow {
+		pow[i] = 1 << uint(i) // == 2**i
+	}
+	for _, value := range pow {
+		fmt.Printf("%d\n", value)
+	}
+}
+#+end_src
+
+[[*Type conversions]]
+
+** Maps
+
+The zero value of a map is =nil.=
+A =nil map has no keys, nor can keys be added.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type Vertex struct {
+	Lat, Long float64
+}
+
+var m map[string]Vertex
+
+func main() {
+	m = make(map[string]Vertex)
+	m["Bell Labs"] = Vertex{
+		40.68433, -74.39967,
+	}
+	fmt.Println(m["Bell Labs"])
+}
+#+end_src
+
+
+=Outside a function=, every statement begins with a keyword =(var, func, and so on)= and so the ~:=~ construct is =not available.=
+
+** Map literals
+
+like struct literals, but the keys are required.
+
+[[*Struct Literals]]
+[[*Slice literals]]
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type Vertex struct {
+	Lat, Long float64
+}
+
+var m = map[string]Vertex{
+	"Bell Labs": Vertex{
+		40.68433, -74.39967,
+	},
+	"Google": Vertex{
+		37.42202, -122.08408,
+	},
+}
+
+func main() {
+	fmt.Println(m)
+}
+#+end_src
+
+** Map literals continued
+
+If the top-level type is just a type name, you can =omit= it from the elements of the literal.
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type Vertex struct {
+	Lat, Long float64
+}
+
+var m = map[string]Vertex{
+	"Bell Labs": {40.68433, -74.39967},
+	"Google":    {37.42202, -122.08408},
+}
+
+func main() {
+	fmt.Println(m)
+}
+#+end_src
+
+** Mutating Maps
+
+Insert or update an element in map m:
+~m[key] = elem~
+Retrieve an element:
+~elem = m[key]~
+Delete an element:
+~delete(m, key)~
+Test that a key is present with a two-value assignment:
+~elem, ok = m[key]~
+  If key is in m, ok is true. If not, ok is false.
+  If key is not in the map, then elem is the zero value for the map's element type.
+
+Note: If elem or ok have not yet been declared you could use a =short declaration= form:
+~elem, ok := m[key]~
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	m := make(map[string]int)
+
+	m["Answer"] = 42
+	fmt.Println("The value:", m["Answer"])
+
+	m["Answer"] = 48
+	fmt.Println("The value:", m["Answer"])
+
+	delete(m, "Answer")
+	fmt.Println("The value:", m["Answer"])
+
+	v, ok := m["Answer"]
+	fmt.Println("The value:", v, "Present?", ok)
+}
+#+end_src
+
+** Function values
+
+=Functions are values too.=
+
+Function values may be used as function arguments and return values.
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+func compute(fn func(float64, float64) float64) float64 {
+	return fn(3, 4)
+}
+
+func main() {
+	hypot := func(x, y float64) float64 {
+		return math.Sqrt(x*x + y*y)
+	}
+	fmt.Println(hypot(5, 12))
+
+	fmt.Println(compute(hypot))
+	fmt.Println(compute(math.Pow))
+}
+#+end_src
+
+=函数也是一等公民=
+
+** Function closures
+
+=A closure is a function value that references variables from outside its body.=
+in this sense the function is "bound" to the variables.
+
+=闭包是一个函数值（function value），它可以引用其函数体外部的变量。=
+=闭包不仅能使用外部的变量，还可以修改它们的值。=
+
+For example, the adder function returns a closure.
+Each closure is bound to its own sum variable.
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func adder() func(int) int {
+	sum := 0
+	return func(x int) int {
+		sum += x
+		return sum
+	}
+}
+
+func main() {
+	pos, neg := adder(), adder()
+	for i := 0; i < 10; i++ {
+		fmt.Println(
+			pos(i),
+			neg(-2*i),
+		)
+	}
+}
+#+end_src
+
+| 概念            | 含义说明                                     |
+|-----------------+----------------------------------------------|
+| 闭包（closure） | 引用了函数外变量的函数，能访问并修改这些变量 |
+| “绑定”变量      | 外部变量在闭包中继续存在，生命周期被延长     |
+| 应用场景        | 计数器、状态累加器、记忆缓存等               |
+
+1.闭包是如何“记住”外部变量的？
+  当你在 Go 中创建一个闭包（即在函数内部定义并返回另一个函数），
+  并且这个内部函数引用了外部变量，
+  Go 编译器会自动将这些变量捕获（capture）并分配到堆上。
+
+2.Go 编译器是怎么实现的？
+  如果变量只在当前函数用，分配在栈上；
+  如果变量被闭包捕获，逃逸分析 会触发，把它分配到堆上；
+  闭包本质上就是一个 函数 + 环境变量指针 的组合。
+
+=闭包 = 函数 + 环境变量（状态）=
+
+实际用途:
+  1.作为“状态持有者”
+  2.用来创建“工厂函数”（函数生成器）
+  3.作为回调函数 / 传参行为
+  4.替代类（轻量状态封装）
+  5.惰性计算 / 缓存（Memoization）
+
+* Methods and Interface
+** Methods
+
+Go does not have classes.
+
+=can define methods on types.=
+
+=a function with a special receiver argument.=
+
+~func (receiver receiver_type) func_name(parameter ...parameter_type) return_type~
+To append one slice to another, use =...= to expand the second argument to =a list of arguments.=
+[[*Named return values]]
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+type Vertex struct {
+	X, Y float64
+}
+
+func (v Vertex) Abs() float64 {
+	return math.Sqrt(v.X*v.X + v.Y*v.Y)
+}
+
+func main() {
+	v := Vertex{3, 4}
+	fmt.Println(v.Abs())
+}
+#+end_src
+
+** Methods are functions
+
+=a method is just a function with a receiver argument.=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+type Vertex struct {
+	X, Y float64
+}
+
+func Abs(v Vertex) float64 {
+	return math.Sqrt(v.X*v.X + v.Y*v.Y)
+}
+
+func main() {
+	v := Vertex{3, 4}
+	fmt.Println(Abs(v))
+}
+#+end_src
+
+** Methods continued
+
+=You can declare a method on non-struct types, too.=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+type MyFloat float64
+
+func (f MyFloat) Abs() float64 {
+	if f < 0 {
+		return float64(-f)
+	}
+	return float64(f)
+}
+
+func main() {
+	f := MyFloat(-math.Sqrt2)
+	fmt.Println(f.Abs())
+}
+#+end_src
+
+[[*Type conversions]]
+
+You can only declare a method with =a receiver whose type is defined in the same package as the method.=
+
+You =cannot declare a method with a receiver whose type is defined in another package= (which includes the built-in types such as int).
+
+** Pointer receivers
+
+=相反，T 为receiver的函数对 T和*T对象都适用=
+=对于有receiver的函数，Go会帮我们自动转换T和*T=
+=但对于普通函数来说，不会帮我们自动转换=
+=自动转换还发生在struct取值的时候=
+=同时注意，receiver 是T*会修改内部变量，T会copy不会修改内部变量=
+
+=declare methods with pointer receivers.=
+=对T和*T 都适用，Go会自动转换=
+
+=the receiver type has the literal syntax *T for some type T.=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+type Vertex struct {
+	X, Y float64
+}
+
+func (v Vertex) Abs() float64 {
+	return math.Sqrt(v.X*v.X + v.Y*v.Y)
+}
+
+func (v *Vertex) Scale(f float64) {
+	v.X = v.X * f
+	v.Y = v.Y * f
+}
+
+func main() {
+	v := Vertex{3, 4}
+	v.Scale(10)
+	fmt.Println(v.Abs())
+}
+#+end_src
+
+=Methods with pointer receivers can modify the value to which the receiver points= (as Scale does here).
+=With a value receiver=, the Scale method operates on =a copy of the original Vertex value.=
+=This is the same behavior as for any other function argument.=
+用 指针接收者（*T）：可以修改原始值，常用于需要改变结构体内容的方法。
+用 值接收者（T）：只能操作副本，不会影响原始对象。
+
+[[*Pointers to structs]]
+  Struct fields can be accessed through a struct pointer.
+  =(*p).X=
+  the language =permits us instead to write just p.X, without the explicit dereference.=
+
+** Pointers and functions
+
+=相反，T 为receiver的函数对 T和*T对象都适用=
+=对于有receiver的函数，Go会帮我们自动转换T和*T=
+=但对于普通函数来说，不会帮我们自动转换=
+=自动转换还发生在struct取值的时候=
+=同时注意，receiver 是T*会修改内部变量，T会copy不会修改内部变量=
+
+~Scale(v Vertex, f float64)~ ：只能修改副本，不影响原值。
+~Scale(v *Vertex, f float64)~ ：修改指针指向的原始值，才能起作用。
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+type Vertex struct {
+	X, Y float64
+}
+
+func Abs(v Vertex) float64 {
+	return math.Sqrt(v.X*v.X + v.Y*v.Y)
+}
+
+func Scale(v *Vertex, f float64) {
+	v.X = v.X * f
+	v.Y = v.Y * f
+}
+
+func main() {
+	v := Vertex{3, 4}
+	Scale(&v, 10)
+	fmt.Println(Abs(v))
+}
+#+end_src
+
+** Methods and pointer indirection
+
+=相反，T 为receiver的函数对 T和*T对象都适用=
+=对于有receiver的函数，Go会帮我们自动转换T和*T=
+=但对于普通函数来说，不会帮我们自动转换=
+=自动转换还发生在struct取值的时候=
+=同时注意，receiver 是T*会修改内部变量，T会copy不会修改内部变量=
+
+#+begin_src go
+var v Vertex
+ScaleFunc(v, 5)  // Compile error!
+ScaleFunc(&v, 5) // OK
+#+end_src
+
+while =methods with pointer receivers take either a value or a pointer= as the receiver when they are called:
+
+#+begin_src go
+var v Vertex
+v.Scale(5)  // OK
+p := &v
+p.Scale(10) // OK
+#+end_src
+
+[[*Pointers to structs]]
+  Struct fields can be accessed through a struct pointer.
+  =(*p).X=
+  the language =permits us instead to write just p.X, without the explicit dereference.=
+
+That is, as a convenience, =Go interprets the statement v.Scale(5) as (&v).Scale(5)= since =the Scale method has a pointer receiver.=  
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type Vertex struct {
+	X, Y float64
+}
+
+func (v *Vertex) Scale(f float64) {
+	v.X = v.X * f
+	v.Y = v.Y * f
+}
+
+func ScaleFunc(v *Vertex, f float64) {
+	v.X = v.X * f
+	v.Y = v.Y * f
+}
+
+func main() {
+	v := Vertex{3, 4}
+	v.Scale(2)
+	ScaleFunc(&v, 10)
+
+	p := &Vertex{4, 3}
+	p.Scale(3)
+	ScaleFunc(p, 8)
+
+	fmt.Println(v, p)
+}
+#+end_src
+
+** Methods and pointer indirection (2)
+
+=相反，T 为receiver的函数对 T和*T对象都适用=
+=对于有receiver的函数，Go会帮我们自动转换T和*T=
+=但对于普通函数来说，不会帮我们自动转换=
+=自动转换还发生在struct取值的时候=
+=同时注意，receiver 是T*会修改内部变量，T会copy不会修改内部变量=
+
+#+begin_src go
+var v Vertex
+fmt.Println(AbsFunc(v))  // OK
+fmt.Println(AbsFunc(&v)) // Compile error!
+#+end_src
+
+while =methods with value receivers take either a value or a pointer= as the receiver when they are called:
+
+#+begin_src go
+var v Vertex
+fmt.Println(v.Abs()) // OK
+p := &v
+fmt.Println(p.Abs()) // OK
+#+end_src
+
+In this case, =the method call p.Abs() is interpreted as (*p).Abs().=
+
+类似
+[[*Pointers to structs]]
+  Struct fields can be accessed through a struct pointer.
+  =(*p).X=
+  the language =permits us instead to write just p.X, without the explicit dereference.=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+type Vertex struct {
+	X, Y float64
+}
+
+func (v Vertex) Abs() float64 {
+	return math.Sqrt(v.X*v.X + v.Y*v.Y)
+}
+
+func AbsFunc(v Vertex) float64 {
+	return math.Sqrt(v.X*v.X + v.Y*v.Y)
+}
+
+func main() {
+	v := Vertex{3, 4}
+	fmt.Println(v.Abs())
+	fmt.Println(AbsFunc(v))
+
+	p := &Vertex{4, 3}
+	fmt.Println(p.Abs())
+	fmt.Println(AbsFunc(*p))
+}
+#+end_src
+
+** Choosing a value or pointer receiver
+
+two reasons to use a pointer receiver.
+  =1.the method can modify the value that its receiver points to.=
+  =2.avoid copying the value on each method call.=
+
+  
+In general,
+all methods on a given type should have either value or pointer receivers,
+but not a mixture of both.
+
+** Interfaces
+
+=An interface type is defined as a set of method signatures.=
+
+=A value of interface type can hold any value that implements those methods.=
+
+=注意例子中的T 和 *T算两种类型=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+type Abser interface {
+	Abs() float64
+}
+
+func main() {
+	var a Abser
+	f := MyFloat(-math.Sqrt2)
+	v := Vertex{3, 4}
+
+	a = f  // a MyFloat implements Abser
+	a = &v // a *Vertex implements Abser
+
+	// In the following line, v is a Vertex (not *Vertex)
+	// and does NOT implement Abser.
+	// a = v // Compile Error!!!
+
+	fmt.Println(a.Abs())
+}
+
+type MyFloat float64
+
+func (f MyFloat) Abs() float64 {
+	if f < 0 {
+		return float64(-f)
+	}
+	return float64(f)
+}
+
+type Vertex struct {
+	X, Y float64
+}
+
+func (v *Vertex) Abs() float64 {
+	return math.Sqrt(v.X*v.X + v.Y*v.Y)
+}
+#+end_src
+
+** Interfaces are implemented implicitly
+
+no explicit declaration of intent, no "implements" keyword.
+
+=Implicit interfaces decouple the definition of an interface from its implementation=, which could then appear in any package without prearrangement.
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type I interface {
+	M()
+}
+
+type T struct {
+	S string
+}
+
+// This method means type T implements the interface I,
+// but we don't need to explicitly declare that it does so.
+func (t T) M() {
+	fmt.Println(t.S)
+}
+
+func main() {
+	var i I = T{"hello"}
+	i.M()
+}
+#+end_src
+
+** Interface values
+
+=interface values can be thought of as a tuple of a value and a concrete type=
+
+~(value, type)~
+
+Calling a method on an interface value executes =the method of the same name on its underlying type.=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+type I interface {
+	M()
+}
+
+type T struct {
+	S string
+}
+
+func (t *T) M() {
+	fmt.Println(t.S)
+}
+
+type F float64
+
+func (f F) M() {
+	fmt.Println(f)
+}
+
+func main() {
+	var i I
+
+	i = &T{"Hello"}
+	describe(i)
+	i.M()
+
+	i = F(math.Pi)
+	describe(i)
+	i.M()
+}
+
+func describe(i I) {
+	fmt.Printf("(%v, %T)\n", i, i)
+}
+#+end_src
+
+** Interface values with nil underlying values
+
+=If the concrete value inside the interface itself is nil, the method will be called with a nil receiver.=
+
+=in Go it is common to write methods that gracefully handle being called with a nil receiver!!!=
+
+=an interface value that holds a nil concrete value is itself non-nil.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type I interface {
+	M()
+}
+
+type T struct {
+	S string
+}
+
+func (t *T) M() {
+	if t == nil {
+		fmt.Println("<nil>")
+		return
+	}
+	fmt.Println(t.S)
+}
+
+func main() {
+	var i I
+
+	var t *T
+	i = t
+	describe(i)
+	i.M()
+
+	i = &T{"hello"}
+	describe(i)
+	i.M()
+}
+
+func describe(i I) {
+	fmt.Printf("(%v, %T)\n", i, i)
+}
+#+end_src
+
+** Nil interface values
+
+=A nil interface value holds neither value nor concrete type.=
+
+=Calling a method on a nil interface is a run-time error=
+  there is no type inside the interface tuple to indicate which concrete method to call.
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type I interface {
+	M()
+}
+
+func main() {
+	var i I
+	describe(i)
+	i.M()
+}
+
+func describe(i I) {
+	fmt.Printf("(%v, %T)\n", i, i)
+}
+#+end_src
+
+** The empty interface
+
+=The interface type that specifies zero methods=
+
+~interface{}~
+
+=An empty interface may hold values of any type=. (Every type implements at least zero methods.)
+
+=Empty interfaces are used by code that handles values of unknown type.=
+  For example, fmt.Print takes any number of arguments of type interface{}.
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	var i interface{}
+	describe(i)
+
+	i = 42
+	describe(i)
+
+	i = "hello"
+	describe(i)
+}
+
+func describe(i interface{}) {
+	fmt.Printf("(%v, %T)\n", i, i)
+}
+#+end_src
+
+** Type assertions
+
+~t := i.(T)~
+
+=asserts that the interface value i holds the concrete type T= and
+=assigns the underlying T value to the variable t.=
+
+[[*Short variable declarations]]
+
+If i does not hold a T, the statement =will trigger a panic.=
+
+test
+  ~t, ok := i.(T)~
+  If i holds a T, then t will be the underlying value and ok will be true.
+  If not, ok will be false and t will be the zero value of type T, and no panic occurs.
+
+Note the similarity between this syntax and that of reading from a map.
+[[*Mutating Maps]]
+[[*Return and handle an error]]
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	var i interface{} = "hello"
+
+	s := i.(string)
+	fmt.Println(s)
+
+	s, ok := i.(string)
+	fmt.Println(s, ok)
+
+	f, ok := i.(float64)
+	fmt.Println(f, ok)
+
+	f = i.(float64) // panic
+	fmt.Println(f)
+}
+#+end_src
+
+** Type switches
+
+#+begin_src go
+switch v := i.(type) {
+case T:
+    // here v has type T
+case S:
+    // here v has type S
+default:
+    // no match; here v has the same type as i
+}
+#+end_src
+
+the variable v hold the value held by i.
+[[*Interface values]]
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func do(i interface{}) {
+	switch v := i.(type) {
+	case int:
+		fmt.Printf("Twice %v is %v\n", v, v*2)
+	case string:
+		fmt.Printf("%q is %v bytes long\n", v, len(v))
+	default:
+		fmt.Printf("I don't know about type %T!\n", v)
+	}
+}
+
+func main() {
+	do(21)
+	do("hello")
+	do(true)
+}
+#+end_src
+
+** Stringers
+
+One of the most ubiquitous interfaces
+
+defined by the fmt package.
+
+#+begin_src go
+type Stringer interface {
+    String() string
+}
+#+end_src
+
+A Stringer is a type that can describe itself as a string.
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type Person struct {
+	Name string
+	Age  int
+}
+
+func (p Person) String() string {
+	return fmt.Sprintf("%v (%v years)", p.Name, p.Age)
+}
+
+func main() {
+	a := Person{"Arthur Dent", 42}
+	z := Person{"Zaphod Beeblebrox", 9001}
+	fmt.Println(a, z)
+}
+#+end_src
+
+** Errors
+
+The =error= type is a =built-in interface= similar to =fmt.Stringer=
+[[*Stringers]]
+
+#+begin_src go
+type error interface {
+    Error() string
+}
+#+end_src
+
+Functions often =return an error value,=
+and calling code =should handle errors by testing whether the error equals nil.=
+
+#+begin_src go
+i, err := strconv.Atoi("42")
+if err != nil {
+    fmt.Printf("couldn't convert number: %v\n", err)
+    return
+}
+fmt.Println("Converted integer:", i)
+#+end_src
+
+A nil error denotes success; a non-nil error denotes failure.
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+type MyError struct {
+	When time.Time
+	What string
+}
+
+func (e *MyError) Error() string {
+	return fmt.Sprintf("at %v, %s",
+		e.When, e.What)
+}
+
+func run() error {
+	return &MyError{
+		time.Now(),
+		"it didn't work",
+	}
+}
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Println(err)
+	}
+}
+#+end_src
+
+[[*Imports]]
+
+** Readers
+
+The =io= package specifies the =io.Reader= interface
+
+The =Go standard library= contains many implementations of this interface, including files, network connections, compressors, ciphers, and others.
+
+The =io.Reader= interface has a =Read= method: ~func (T) Read(b []byte) (n int, err error)~
+
+Read populates the given byte slice with data and returns the number of bytes populated and an error value.
+It returns an =io.EOF= error when the stream ends.
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"io"
+	"strings"
+)
+
+func main() {
+	r := strings.NewReader("Hello, Reader!")
+
+	b := make([]byte, 8)
+	for {
+		n, err := r.Read(b)
+		fmt.Printf("n = %v err = %v b = %v\n", n, err, b)
+		fmt.Printf("b[:n] = %q\n", b[:n])
+		if err == io.EOF {
+			break
+		}
+	}
+}
+#+end_src
+
+** Images
+
+[[https://go.dev/pkg/image/#Image][Package Image]] defines the =Image= interface
+
+#+begin_src go
+package image
+
+type Image interface {
+    ColorModel() color.Model
+    Bounds() Rectangle
+    At(x, y int) color.Color
+}
+#+end_src
+
+the Rectangle return value of the Bounds method is actually an image.Rectangle, as the declaration is inside package image.
+
+https://go.dev/pkg/image/#Image
+
+The color.Color and color.Model types are also interfaces, but we'll ignore that by using the predefined implementations color.RGBA and color.RGBAModel.
+
+These interfaces and types are specified by the [[https://go.dev/pkg/image/color/][image/color package]].
+
+* Generics
+** Type parameters
+
+Go functions can be written to work on multiple types
+
+~func Index[T comparable](s []T, x T) int~
+
+s is a slice of any type T that fulfills =the built-in constraint comparable.=
+
+comparable is a useful =constraint= that makes it possible to use the == and != operators on values of the type.
+
+类型约束在语法层面就是接口（interface）的一种变体。
+1.内置约束（Go 自带）
+comparable	支持 == / !=，比如 int, string, pointer, struct 等
+any	        等价于 interface{}，表示不限制任何类型
+
+2.自定义约束（定义自己的接口）
+你可以使用 interface{} 加 ~ 运算符和 |（类型并集）来自定义更灵活的约束。
+
+#+begin_src go
+type Number interface {
+	~int | ~int64 | ~float64
+}
+#+end_src
+
+3.方法约束（行为接口）
+#+begin_src go
+type Stringer interface {
+	String() string
+}
+
+func PrintStrings[T Stringer](items []T) {
+	for _, item := range items {
+		fmt.Println(item.String())
+	}
+}
+#+end_src
+
+
+#+begin_src go
+package main
+
+import "fmt"
+
+// Index returns the index of x in s, or -1 if not found.
+func Index[T comparable](s []T, x T) int {
+	for i, v := range s {
+		// v and x are type T, which has the comparable
+		// constraint, so we can use == here.
+		if v == x {
+			return i
+		}
+	}
+	return -1
+}
+
+func main() {
+	// Index works on a slice of ints
+	si := []int{10, 20, 15, -10}
+	fmt.Println(Index(si, 15))
+
+	// Index also works on a slice of strings
+	ss := []string{"foo", "bar", "baz"}
+	fmt.Println(Index(ss, "hello"))
+}
+#+end_src
+
+** Generic types
+
+A type can be parameterized with a type parameter,
+which could be =useful for implementing generic data structures.=
+
+
+
+#+begin_src go
+package main
+
+// List represents a singly-linked list that holds
+// values of any type.
+type List[T any] struct {
+	next *List[T]
+	val  T
+}
+
+func main() {
+}
+#+end_src
+
+* Concurrency
+** Goroutines
+
+=a lightweight thread managed by the Go runtime.=
+
+~go f(x, y, z)~
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func say(s string) {
+	for i := 0; i < 5; i++ {
+		time.Sleep(100 * time.Millisecond)
+		fmt.Println(s)
+	}
+}
+
+func main() {
+	go say("world")
+	say("hello")
+}
+#+end_src
+
+=Goroutines run in the same address space, so access to shared memory must be synchronized.=
+说明页表资源是相同的
+用户线程？有自己的栈空间，页表资源、文件描述符数组等相同
+
+** Channels
+
+=conduit= that you can send and receive values with =the channel operator=, ~<-~
+
+#+begin_src go
+ch <- v    // Send v to channel ch.
+v := <-ch  // Receive from ch, and
+           // assign value to v.
+#+end_src
+
+The data flows in the direction of the arrow.
+
+Like =maps and slices=, channels must be created before use: ~ch := make(chan int)~
+
+[[*Creating a slice with make]]
+[[*map]]
+[[*Maps]]
+
+=By default, sends and receives block until the other side is ready.=
+  This allows goroutines to synchronize without explicit locks or condition variables.
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func sum(s []int, c chan int) {
+	sum := 0
+	for _, v := range s {
+		sum += v
+	}
+	c <- sum // send sum to c
+}
+
+func main() {
+	s := []int{7, 2, 8, -9, 4, 0}
+
+	c := make(chan int)
+	go sum(s[:len(s)/2], c)
+	go sum(s[len(s)/2:], c)
+	x, y := <-c, <-c // receive from c
+
+	fmt.Println(x, y, x+y)
+}
+#+end_src
+
+** Buffered Channels
+
+Provide the =buffer length= as the second argument to =make= to initialize a buffered channel
+
+~ch := make(chan int, 100)~
+
+Sends to a buffered channel =block only when the buffer is full.= Receives =block when the buffer is empty.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+	ch := make(chan int, 2)
+	ch <- 1
+	ch <- 2
+	fmt.Println(<-ch)
+	fmt.Println(<-ch)
+}
+#+end_src
+
+** Range and Close
+
+A sender =can close a channel=
+
+=Receivers can test= whether a channel has been closed
+  ~v, ok := <-ch~
+  ok is false if there are no more values to receive and the channel is closed.
+
+The loop ~for i := range c~  receives values from the channel repeatedly =until it is closed.=
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+)
+
+func fibonacci(n int, c chan int) {
+	x, y := 0, 1
+	for i := 0; i < n; i++ {
+		c <- x
+		x, y = y, x+y
+	}
+	close(c)
+}
+
+func main() {
+	c := make(chan int, 10)
+	go fibonacci(cap(c), c)
+	for i := range c {
+		fmt.Println(i)
+	}
+}
+#+end_src
+
+
+=Only the sender should close a channel, never the receiver.=
+
+=Sending on a closed channel will cause a panic.=
+
+=Channels aren't like files; you don't usually need to close them.=
+  =Closing is only necessary when the receiver must be told= there are no more values coming,
+  such as to terminate a range loop.
+
+** Select
+
+=lets a goroutine wait on multiple communication operations.=
+
+A select =blocks until one of its cases can run, then it executes that case.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+func fibonacci(c, quit chan int) {
+	x, y := 0, 1
+	for {
+		select {
+		case c <- x:
+			x, y = y, x+y
+		case <-quit:
+			fmt.Println("quit")
+			return
+		}
+	}
+}
+
+func main() {
+	c := make(chan int)
+	quit := make(chan int)
+	go func() {
+		for i := 0; i < 10; i++ {
+			fmt.Println(<-c)
+		}
+		quit <- 0
+	}()
+	fibonacci(c, quit)
+}
+#+end_src
+
+** Default Selection
+
+=default=  case in a =select= is run if no other case is ready.
+
+Use a =default= case to try a send or receive without blocking:
+
+#+begin_src go
+select {
+case i := <-c:
+    // use i
+default:
+    // receiving from c would block
+}
+#+end_src
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	tick := time.Tick(100 * time.Millisecond)
+	boom := time.After(500 * time.Millisecond)
+	for {
+		select {
+		case <-tick:
+			fmt.Println("tick.")
+		case <-boom:
+			fmt.Println("BOOM!")
+			return
+		default:
+			fmt.Println("    .")
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+}
+
+#+end_src
+
+** sync.Mutex
+
+channels are great for communication among goroutines.
+
+What if we just want to make sure only one goroutine can access a variable at a time to avoid conflicts?
+
+=mutual exclusion=
+
+=sync.Mutex= and its two methods:
+  ~Lock~
+  ~UnLock~
+
+can also use =defer= to =ensure the mutex will be unlocked= as in the Value method.
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"sync"
+	"time"
+)
+
+// SafeCounter is safe to use concurrently.
+type SafeCounter struct {
+	mu sync.Mutex
+	v  map[string]int
+}
+
+// Inc increments the counter for the given key.
+func (c *SafeCounter) Inc(key string) {
+	c.mu.Lock()
+	// Lock so only one goroutine at a time can access the map c.v.
+	c.v[key]++
+	c.mu.Unlock()
+}
+
+// Value returns the current value of the counter for the given key.
+func (c *SafeCounter) Value(key string) int {
+	c.mu.Lock()
+	// Lock so only one goroutine at a time can access the map c.v.
+	defer c.mu.Unlock()
+	return c.v[key]
+}
+
+func main() {
+	c := SafeCounter{v: make(map[string]int)}
+	for i := 0; i < 1000; i++ {
+		go c.Inc("somekey")
+	}
+
+	time.Sleep(time.Second)
+	fmt.Println(c.Value("somekey"))
+}
+#+end_src
+
+* multi-module workspaces
+** Create a module for your code¶
+
+~mkdir workspace;cd workspace~
+
+Initialize the module
+create a new module hello that will depend on the golang.org/x/example module.
+~mkdir hello;cd hello~
+~go mod init example.com/hello~
+
+Add a dependency on the golang.org/x/example/hello/reverse package by using go get.
+~go get golang.org/x/example/hello/reverse~
+
+hello.go
+#+begin_src go
+package main
+
+import (
+    "fmt"
+
+    "golang.org/x/example/hello/reverse"
+)
+
+func main() {
+    fmt.Println(reverse.String("Hello"))
+}
+#+end_src
+
+~go run .~
+
+** Create the workspace
+
+=go.work= file to specify a workspace with the module.
+
+Initialize the workspace
+
+=in workspace directory=
+
+~go work init ./hello~
+
+tells go to create a =go.work= file for a workspace containing the modules in the =./hello= directory.
+
+go.work
+  go 1.24.1
+
+  use ./hello
+
+=The use directive tells Go that the module in the hello directory should be main modules when doing a build.=
+=这样你在 workspace 目录或其子目录运行 go build、go run 时，Go 就会去用 hello 里的 go.mod 作为依赖来源和构建基础。=
+=use 的作用是把某个目录下的模块声明为“我现在要工作的模块”，方便 Go 在整个工作区里正确解析依赖和执行构建。=
+
+Run the program in the workspace directory
+~go run ./hello~
+
+Next, we’ll add a local copy of the golang.org/x/example/hello module to the workspace.
+  That module is stored in a =subdirectory of the go.googlesource.com/example Git repository.=
+
+** Download and modify the golang.org/x/example/hello module
+
+From the workspace directory, clone the repository
+~git clone https://go.googlesource.com/example~
+
+Add the module to the workspace
+~go work use ./example/hello~
+
+go.work
+  go 1.24.1
+  
+  use (
+          ./example/hello
+          ./hello
+  )
+
+This will allow us to use the new code we will write in our copy of the reverse package
+instead of the version of the package in the module cache that we downloaded with the =go get= command.
+
+Add the new function
+=workspace/example/hello/reverse/int.go=
+#+begin_src go
+package reverse
+
+import "strconv"
+
+// Int returns the decimal reversal of the integer i.
+func Int(i int) int {
+    i, _ = strconv.Atoi(String(strconv.Itoa(i)))
+    return i
+}
+#+end_src
+
+Modify the hello program to use the function.
+#+begin_src go
+package main
+
+import (
+    "fmt"
+
+    "golang.org/x/example/hello/reverse"
+)
+
+func main() {
+    fmt.Println(reverse.String("Hello"), reverse.Int(24601))
+}
+#+end_src
+
+Run the code in the workspace
+From the workspace directory, run ~go run ./hello~
+
+The Go command finds the example.com/hello module specified in the command line in the hello directory specified by the go.work file
+and similarly resolves the golang.org/x/example/hello/reverse import using the go.work file.
+
+=go.work= can be used instead of adding =replace directives= to work across multiple modules.
+[[*Use an external package]]
+
+** Future step
+
+to properly release these modules
+
+=This is usually done by tagging a commit on the module’s version control repository.=
+
+[[https://go.dev/doc/modules/release-workflow][module release workflow documentation]]
+
+=Once the release is done=, we can increase the requirement on the golang.org/x/example/hello module in =hello/go.mod=:
+
+~cd hello;go get golang.org/x/example/hello@v0.1.0~
+
+That way, the go command can properly resolve the modules outside the workspace.
+
+** Learn more about workspaces
+
+~go work init~
+
+~go work use [-r] [dir]~ adds a use directive to the =go.work= file for dir
+
+~go work edit~ edits the ~go.work~ file similarly to ~go mod edit~ [[*Use an external package]]
+
+~go work sync~ syncs dependencies from the workspace’s build list into each of the workspace modules.
+
+[[https://go.dev/ref/mod#workspaces][Workspaces]]
+
+* Developing a RESTful API with Go and Gin
+
+[[https://gin-gonic.com/docs/][Gin Web Framework]]
+
+route requests, retrieve request details, and marshal JSON for responses.
+
+Design API endpoints
+/albums
+  GET – Get a list of all albums, returned as JSON.
+  POST – Add a new album from request data sent as JSON.
+/albums /:id
+  GET – Get an album by its ID, returning the album data as JSON.
+
+~mkdir web-service-gin;cd web-service-gin~
+~go mod init example/web-service-gin~
+  creates a =go.mod=
+
+main.go
+#+begin_src go
+package main // A standalone program (as opposed to a library) is always in package main.
+
+import (
+	"net/http" // album represents data about a record album.
+
+	"github.com/gin-gonic/gin"
+)
+
+// Struct tags such as json:"artist" specify what a field’s name should be when the struct’s contents are serialized into JSON.
+// Without them, the JSON would use the struct’s capitalized field names – a style not as common in JSON.
+type album struct {
+	ID     string  `json:"id"`
+	Title  string  `json:"title"`
+	Artist string  `json:"artist"`
+	Price  float64 `json:"price"`
+}
+
+// albums slice to seed record album data.
+var albums = []album{
+	{ID: "1", Title: "Blue Train", Artist: "John Coltrane", Price: 56.99},
+	{ID: "2", Title: "Jeru", Artist: "Gerry Mulligan", Price: 17.99},
+	{ID: "3", Title: "Sarah Vaughan and Clifford Brown", Artist: "Sarah Vaughan", Price: 39.99},
+}
+
+// getAlbums responds with the list of all albums as JSON.
+func getAlbums(c *gin.Context) {
+	c.IndentedJSON(http.StatusOK, albums)
+}
+
+// postAlbums adds an album from JSON received in the request body.
+func postAlbums(c *gin.Context) {
+	var newAlbum album
+
+	// Call BindJSON to bind the received JSON to
+	// newAlbum.
+	if err := c.BindJSON(&newAlbum); err != nil {
+		return
+	}
+
+	// Add the new album to the slice.
+	albums = append(albums, newAlbum)
+	c.IndentedJSON(http.StatusCreated, newAlbum)
+}
+
+// getAlbumByID locates the album whose ID value matches the id
+// parameter sent by the client, then returns that album as a response.
+func getAlbumByID(c *gin.Context) {
+	id := c.Param("id")
+
+	// Loop over the list of albums, looking for
+	// an album whose ID value matches the parameter.
+	for _, a := range albums {
+		if a.ID == id {
+			c.IndentedJSON(http.StatusOK, a)
+			return
+		}
+	}
+	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "album not found"})
+}
+
+func main() {
+	router := gin.Default()
+	router.GET("/albums", getAlbums)
+	router.GET("/albums/:id", getAlbumByID) //In Gin, the colon preceding an item in the path signifies that the item is a path parameter.
+	router.POST("/albums", postAlbums)
+
+	router.Run("localhost:8080")
+}
+#+end_src
+
+[[https://pkg.go.dev/github.com/gin-gonic/gin#Context][gin.Context]]
+
+this is different from Go’s built-in [[https://go.dev/pkg/context/][context]] package
+
+~go get .~ [[https://go.dev/cmd/go/#hdr-Add_dependencies_to_current_module_and_install_them][go get]] to add the dependency
+
+Go resolved and downloaded this dependency to satisfy the import declaration you added in the previous step.
+
+~go run .~
+
+~curl http://localhost:8080/albums~
+
+or
+
+#+begin_src shell
+curl http://localhost:8080/albums \
+    --header "Content-Type: application/json" \
+    --request "GET"  
+#+end_src
+
+#+begin_src shell
+curl http://localhost:8080/albums \
+    --include \
+    --header "Content-Type: application/json" \
+    --request "POST" \
+    --data '{"id": "4","title": "The Modern Sound of Betty Carter","artist": "Betty Carter","price": 49.99}'
+#+end_src
+
+~curl http://localhost:8080/albums/2~
+
+=Go doesn’t enforce the order in which you declare functions.=
+注意和c/cpp的区别
+
+[[*If with a short statement]]
+
+[[*Struct Fields]]
+
+Suggested next topics:
+  [[https://go.dev/doc/effective_go][Effective Go]] and [[https://go.dev/doc/code][How to write Go code]]
+  [[https://go.dev/tour/][Go Tour]]
+  [[https://pkg.go.dev/github.com/gin-gonic/gin][Gin Web Framework package documentation]] or the [[https://gin-gonic.com/docs/][Gin Web Framework docs]]
+
+* Tutorial: Getting started with generics
+
+~mkdir generics;cd generics~
+
+~go mod init example/generics~
+
+** non-generic
+main.go
+#+begin_src go
+package main
+
+import (
+	"fmt"
+)
+
+// SumInts adds together the values of m.
+func SumInts(m map[string]int64) int64 {
+	var s int64
+
+	for _, v := range m {
+		s += v
+	}
+
+	return s
+}
+
+// SumFloats adds together the values of m.
+func SumFloats(m map[string]float64) float64 {
+	var s float64
+
+	for _, v := range m {
+		s += v
+	}
+
+	return s
+}
+
+func main() {
+	// Initialize a map for the integer values
+	ints := map[string]int64{
+		"first":  34,
+		"second": 12,
+	}
+
+	// Initialize a map for the float values
+	floats := map[string]float64{
+		"first":  35.98,
+		"second": 26.99,
+	}
+
+	fmt.Printf("Non-Generic Sums: %v and %v\n",
+		SumInts(ints),
+		SumFloats(floats))
+}
+#+end_src
+
+~go run .~
+
+** Add a generic function to handle multiple types
+
+a type parameter must support all the operations the generic code is performing on it.
+
+main.go
+#+begin_src go
+package main
+
+import "fmt"
+
+// SumIntsOrFloats sums the values of map m. It supports both int64 and float64
+// as types for map values.
+func SumIntsOrFloats[K comparable, V int64 | float64](m map[K]V) V { // function that declares type parameters in addition to its ordinary function parameters.
+	var s V
+	for _, v := range m {
+		s += v
+	}
+	return s
+}
+
+func main() {
+
+	// Initialize a map for the integer values
+	ints := map[string]int64{
+		"first":  34,
+		"second": 12,
+	}
+
+	// Initialize a map for the float values
+	floats := map[string]float64{
+		"first":  35.98,
+		"second": 26.99,
+	}
+
+	// call the function with type arguments and ordinary function arguments.
+	fmt.Printf("Generic Sums: %v and %v\n",
+		SumIntsOrFloats[string, int64](ints),
+		SumIntsOrFloats[string, float64](floats))
+}
+#+end_src
+
+[[*Generics]]
+
+=comparable= constraint is predeclared in Go.
+It allows any type whose values may be used as an operand of the comparison operators == and !=.
+=Go requires that map keys be comparable.=
+
+=| specifies a union of the two types=
+
+As you’ll see in the next section, =in many cases you can omit these type arguments because the compiler can infer them.=
+
+** Remove type arguments when calling the generic function
+
+=You can omit type arguments in calling code when the Go compiler can infer the types you want to use.=
+
+=The compiler infers type arguments from the types of function arguments.=
+
+=if you needed to call a generic function that had no arguments, you would need to include the type arguments in the function call.=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+// SumIntsOrFloats sums the values of map m. It supports both int64 and float64
+// as types for map values.
+func SumIntsOrFloats[K comparable, V int64 | float64](m map[K]V) V { // function that declares type parameters in addition to its ordinary function parameters.
+	var s V
+	for _, v := range m {
+		s += v
+	}
+	return s
+}
+
+func main() {
+
+	// Initialize a map for the integer values
+	ints := map[string]int64{
+		"first":  34,
+		"second": 12,
+	}
+
+	// Initialize a map for the float values
+	floats := map[string]float64{
+		"first":  35.98,
+		"second": 26.99,
+	}
+
+	// call the function with type arguments and ordinary function arguments.
+	fmt.Printf("Generic Sums, type parameters inferred: %v and %v\n",
+		SumIntsOrFloats(ints),
+		SumIntsOrFloats(floats))
+}
+#+end_src
+
+** Declare a type constraint¶
+
+=declare a type constraint as an interface.=
+
+=The constraint allows any type implementing the interface.=
+
+if you declare a type constraint interface with three methods,
+then use it with a type parameter in a generic function,
+type arguments used to call the function must have all of those methods.
+
+#+begin_src go
+package main
+
+import "fmt"
+
+type Number interface {
+	int64 | float64
+}
+
+// SumIntsOrFloats sums the values of map m. It supports both int64 and float64
+// as types for map values.
+func SumIntsOrFloats[K comparable, V Number](m map[K]V) V { // function that declares type parameters in addition to its ordinary function parameters.
+	var s V
+	for _, v := range m {
+		s += v
+	}
+	return s
+}
+
+func main() {
+
+	// Initialize a map for the integer values
+	ints := map[string]int64{
+		"first":  34,
+		"second": 12,
+	}
+
+	// Initialize a map for the float values
+	floats := map[string]float64{
+		"first":  35.98,
+		"second": 26.99,
+	}
+
+	// call the function with type arguments and ordinary function arguments.
+	fmt.Printf("Generic Sums with Constraint: %v and %v\n",
+		SumIntsOrFloats(ints),
+		SumIntsOrFloats(floats))
+}
+#+end_src
+
+* Tutorial: Getting started with fuzzing
+
+Some examples of vulnerabilities that can be found by fuzzing are =SQL injection, buffer overflow, denial of service and cross-site scripting attacks.=
+
+~mkdir fuzz;cd funzz~
+~go mod init example/fuzz~
+
+main.go
+#+begin_src go
+package main
+
+import "fmt"
+
+func Reverse(s string) string {
+	b := []byte(s)
+	for i, j := 0, len(b)-1; i < len(b)/2; i, j = i+1, j-1 {
+		b[i], b[j] = b[j], b[i]
+	}
+
+	return string(b)
+}
+
+func main() {
+	input := "The quick brown fox jumped over the lazy dog"
+	rev := Reverse(input)
+	doubleRev := Reverse(rev)
+	fmt.Printf("original: %q\n", input)
+	fmt.Printf("reversed: %q\n", rev)
+	fmt.Printf("reversed again: %q\n", doubleRev)
+}
+#+end_src
+
+[[*Arrays]]
+[[*Type conversions]]
+[[*Slice literals]]
+
+** Add a unit test
+
+#+begin_src go
+package main
+
+import "testing"
+
+func TestReverse(t *testing.T) {
+	testcases := []struct {
+		in, want string
+	}{
+		{"Hello, world", "dlrow ,olleH"},
+		{" ", " "},
+		{"!12345", "54321!"},
+	}
+	for _, tc := range testcases {
+		rev := Reverse(tc.in)
+		if rev != tc.want {
+			t.Errorf("Reverse: %q, want %q", rev, tc.want)
+		}
+	}
+}
+#+end_src
+~go test~
+
+[[*unit test]]
+
+** Add a fuzz test
+
+The unit test has limitations, namely that each input must be added to the test by the developer.
+
+fuzzing:
+  One benefit is it comes up with inputs for your code, and may identify edge cases
+
+=you can keep unit tests, benchmarks, and fuzz tests in the same *_test.go file=
+
+When fuzzing, you can’t predict the expected output, since you =don’t have control over the inputs.=
+
+ the syntax differences between the unit test and the fuzz test:
+   =1.The function begins with FuzzXxx instead of TestXxx, and takes *testing.F instead of *testing.T=
+   =2.Where you would expect to see a t.Run execution, you instead see f.Fuzz which takes a fuzz target function whose parameters are *testing.T and the types to be fuzzed.=
+   =3.The inputs from your unit test are provided as seed corpus inputs using f.Add.=
+
+reverse_test.go
+#+begin_src go
+package main
+
+import (
+	"testing"
+	"unicode/utf8"
+)
+
+func FuzzReverse(f *testing.F) {
+	testcases := []string{"Hello, world", "", "!12345"}
+	for _, tc := range testcases {
+		f.Add(tc)
+	}
+	f.Fuzz(func(t *testing.T, orig string) {
+		rev := Reverse(orig)
+		doubleRev := Reverse(rev)
+		if orig != doubleRev {
+			t.Errorf("Before: %q, after: %q", orig, doubleRev)
+		}
+		if utf8.ValidString(orig) && !utf8.ValidString(rev) {
+			t.Errorf("Reverse produced invalid UTF-8 string %q", rev)
+		}
+	})
+}
+#+end_src
+
+1.Run the fuzz test without fuzzing it to make sure the seed inputs pass.
+~go test~
+
+if you have other tests in that file, and you only wish to run the fuzz test.
+  ~go test -run=FuzzReverse~
+
+2.Run FuzzReverse with fuzzing, to see if any randomly generated string inputs will cause a failure.
+~go test -fuzz=Fuzz~
+
+~go test -fuzztime 10s~ restricts the time fuzzing takes.
+
+[[https://pkg.go.dev/cmd/go#hdr-Testing_flags][the cmd/go documentation to see other testing flags.]]
+
+=A failure occurred while fuzzing, and the input that caused the problem is written to a seed corpus file that will be run the next time go test is called, even without the -fuzz flag.=
+To view the input that caused the failure, open the =corpus file written to the testdata/fuzz/FuzzReverse= directory in a text editor.
+➜  fuzz tree testdata 
+testdata
+└── fuzz
+    └── FuzzReverse
+        └── 6835c85661da95ec
+
+3 directories, 1 file
+
+~go test~ again without the =-fuzz flag=; the =new failing seed corpus entry will be used=
+
+➜  fuzz go test           
+--- FAIL: FuzzReverse (0.00s)
+    --- FAIL: FuzzReverse/6835c85661da95ec (0.00s)
+        reverse_test.go:20: Reverse produced invalid UTF-8 string "\x97\xc4"
+FAIL
+exit status 1
+FAIL    example/fuzz    0.590s
+
+** Fix the invalid string error
+
+reverse_test.go
+#+begin_src go
+package main
+
+import (
+	"testing"
+	"unicode/utf8"
+)
+
+func FuzzReverse(f *testing.F) {
+	testcases := []string{"Hello, world", "", "!12345"}
+	for _, tc := range testcases {
+		f.Add(tc)
+	}
+	f.Fuzz(func(t *testing.T, orig string) {
+		rev := Reverse(orig)
+		doubleRev := Reverse(rev)
+		t.Logf("Number of runes: orig=%d, rev=%d, doubleRev=%d", utf8.RuneCountInString(orig), utf8.RuneCountInString(rev), utf8.RuneCountInString(doubleRev))
+		if orig != doubleRev {
+			t.Errorf("Before: %q, after: %q", orig, doubleRev)
+		}
+		if utf8.ValidString(orig) && !utf8.ValidString(rev) {
+			t.Errorf("Reverse produced invalid UTF-8 string %q", rev)
+		}
+	})
+}
+#+end_src
+
+t.Logf line will print to the command line =if an error occurs=, or if =executing the test with -v=
+
+~go test~
+
+[[https://go.dev/blog/strings][Strings, bytes, runes and characters in Go]]
+
+Fix the error
+main.go
+#+begin_src go
+package main
+
+import "fmt"
+
+func Reverse(s string) string {
+	fmt.Printf("input: %q\n", s)
+	r := []rune(s)
+	fmt.Printf("runes: %q\n", r)
+	for i, j := 0, len(r)-1; i < len(r)/2; i, j = i+1, j-1 {
+		r[i], r[j] = r[j], r[i]
+	}
+
+	return string(r)
+}
+
+func main() {
+	input := "The quick brown fox jumped over the lazy dog"
+	rev := Reverse(input)
+	doubleRev := Reverse(rev)
+	fmt.Printf("original: %q\n", input)
+	fmt.Printf("reversed: %q\n", rev)
+	fmt.Printf("reversed again: %q\n", doubleRev)
+}
+#+end_src
+
+~go test~
+~go test -fuzz=Fuzz~
+
+➜  fuzz go test -fuzz=Fuzz
+fuzz: elapsed: 0s, gathering baseline coverage: 0/9 completed
+fuzz: minimizing 32-byte failing input file
+fuzz: elapsed: 0s, gathering baseline coverage: 5/9 completed
+--- FAIL: FuzzReverse (0.02s)
+    --- FAIL: FuzzReverse (0.00s)
+        reverse_test.go:16: Number of runes: orig=1, rev=1, doubleRev=1
+        reverse_test.go:18: Before: "\xbf", after: "�"
+    
+    Failing input written to testdata/fuzz/FuzzReverse/9783172430fa24ae
+    To re-run:
+    go test -run=FuzzReverse/9783172430fa24ae
+FAIL
+exit status 1
+FAIL    example/fuzz    0.734s
+
+In Go, [[https://go.dev/blog/strings][a string is a read only slice of bytes]], and =can contain bytes that aren’t valid UTF-8.=
+
+The original string is a byte slice with one byte, '\x91'. =When the input string is set to []rune, Go encodes the byte slice to UTF-8, and replaces the byte with the UTF-8 character �.=
+
+When we compare the replacement UTF-8 character to the input byte slice, they are clearly not equal.
+
+=To run a specific corpus entry within FuzzXxx/testdata, you can provide {FuzzTestName}/{filename} to -run.=
+➜  fuzz tree testdata
+testdata
+└── fuzz
+    └── FuzzReverse
+        ├── 15bfdd8211bc738a
+        ├── 6835c85661da95ec
+        └── 9783172430fa24ae
+
+3 directories, 3 files
+
+~go test -run=FuzzReverse/15bfdd8211bc738a~
+➜  fuzz go test -run=FuzzReverse/15bfdd8211bc738a
+input: "\xfd+\xa7_(Cg"
+runes: ['�' '+' '�' '_' '(' 'C' 'g']
+input: "gC(_�+�"
+runes: ['g' 'C' '(' '_' '�' '+' '�']
+--- FAIL: FuzzReverse (0.00s)
+    --- FAIL: FuzzReverse/15bfdd8211bc738a (0.00s)
+        reverse_test.go:16: Number of runes: orig=7, rev=7, doubleRev=7
+        reverse_test.go:18: Before: "\xfd+\xa7_(Cg", after: "�+�_(Cg"
+FAIL
+exit status 1
+FAIL    example/fuzz    0.245s
+
+=To fix this issue, let’s return an error if the input to Reverse isn’t valid UTF-8.=
+
+main.go
+#+begin_src go
+package main
+
+import (
+	"errors"
+	"fmt"
+	"unicode/utf8"
+)
+
+// This change will return an error if the input string contains characters which are not valid UTF-8.
+func Reverse(s string) (string, error) {
+	if !utf8.ValidString(s) {
+		return s, errors.New("input is not valid UTF-8")
+	}
+
+	r := []rune(s)
+	for i, j := 0, len(r)-1; i < len(r)/2; i, j = i+1, j-1 {
+		r[i], r[j] = r[j], r[i]
+	}
+
+	return string(r), nil
+}
+
+func main() {
+	input := "The quick brown fox jumped over the lazy dog"
+	rev, revErr := Reverse(input)
+	doubleRev, doubleRevErr := Reverse(rev)
+	fmt.Printf("original: %q\n", input)
+	fmt.Printf("reversed: %q\n, err: %v\n", rev, revErr)
+	fmt.Printf("reversed again: %q\n, err: %v\n", doubleRev, doubleRevErr)
+}
+#+end_src
+
+reverse_test.go
+#+begin_src go
+package main
+
+import (
+	"testing"
+	"unicode/utf8"
+)
+
+func FuzzReverse(f *testing.F) {
+	testcases := []string{"Hello, world", "", "!12345"}
+	for _, tc := range testcases {
+		f.Add(tc)
+	}
+	f.Fuzz(func(t *testing.T, orig string) {
+		rev, err1 := Reverse(orig)
+		if err1 != nil {
+			return
+		}
+		doubleRev, err2 := Reverse(rev)
+		if err2 != nil {
+			return
+		}
+		if orig != doubleRev {
+			t.Errorf("Before: %q, after: %q", orig, doubleRev)
+		}
+		if utf8.ValidString(orig) && !utf8.ValidString(rev) {
+			t.Errorf("Reverse produced invalid UTF-8 string %q", rev)
+		}
+	})
+}
+#+end_src
+
+Rather than returning, you can also call =t.Skip()= to stop the execution of that fuzz input.
+
+~go test~
+~go test -fuzz=Fuzz~
+
+stop fuzzing with ctrl-C.
+The fuzz test will run until it encounters a failing input unless you pass the =-fuzztime flag.=
+
+Fuzz it with ~go test -fuzz=Fuzz -fuzztime 30s~
+
+[[https://go.dev/security/fuzz/#command-line-output][Go Fuzzing]]
+
+* Writing Web Applications
+** Data Structures
+
+~mkdir gowiki;cd gowiki~
+
+注意这里没有 =go mod init=
+
+wiki.go
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+type Page struct {
+	Title string
+	Body  []byte // https://go.dev/doc/articles/slices_usage_and_internals.html
+}
+
+func (p *Page) save() error {
+	filename := p.Title + ".txt"
+	//  the file should be created with read-write permissions for the current user only.
+	// the Unix man page open(2) for details.
+	return os.WriteFile(filename, p.Body, 0600)
+}
+
+func loadPage(title string) (*Page, error) {
+	filename := title + ".txt"
+	body, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return &Page{Title: title, Body: body}, nil
+}
+
+func main() {
+	p1 := &Page{Title: "TestPage", Body: []byte("This is a sample Page.")}
+	p1.save()
+	p2, _ := loadPage("TestPage")
+	fmt.Printf(string(p2.Body))
+}
+#+end_src
+
+➜  gowiki go build wiki.go
+➜  gowiki ./wiki 
+This is a sample Page.%
+
+** Introducing the net/http package (an interlude)
+
+simple web server example
+
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+)
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hi there , I love %s!", r.URL.Path[1:])
+}
+
+func main() {
+	http.HandleFunc("/", handler)
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+#+end_src
+
+ListenAndServe always returns an error, since it =only returns when an unexpected error occurs.=
+
+=In order to log that error we wrap the function call with log.Fatal.=
+
+~curl http://localhost:8080/monkeys~
+
+** Using net/http to serve wiki pages
+
+wiki.go
+#+begin_src go
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+)
+
+type Page struct {
+	Title string
+	Body  []byte // https://go.dev/doc/articles/slices_usage_and_internals.html
+}
+
+func (p *Page) save() error {
+	filename := p.Title + ".txt"
+	//  the file should be created with read-write permissions for the current user only.
+	// the Unix man page open(2) for details.
+	return os.WriteFile(filename, p.Body, 0600)
+}
+
+func loadPage(title string) (*Page, error) {
+	filename := title + ".txt"
+	body, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return &Page{Title: title, Body: body}, nil
+}
+
+func viewHandler(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Path[len("/view/"):]
+	p, _ := loadPage(title) // ignore the error,generally considered bad practice.
+	fmt.Fprintf(w, "<h1>%s</h1><div>%s</div>", p.Title, p.Body)
+}
+
+func main() {
+	http.HandleFunc("/view/", viewHandler)
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+#+end_src
+
+test.txt
+Hello world
+
+~go build wiki.go~
+~./wiki~
+
+http://localhost:8080/view/test
+
+** Editing Pages && The html/template package
+
+A wiki is not a wiki without the ability to edit pages.
+
+We can =use html/template to keep the HTML in a separate file=, allowing us to change the layout of our edit page without modifying the underlying Go code.
+
+edit.html
+#+begin_src html
+<h1>Editing {{.Title}}</h1>
+
+<form action="/save/{{.Title}}" method="post">
+    <div><textarea name="body" rows="20" cols="80">{{printf "%s" .Body}}</textarea></div>
+    <div><input type="submit" value="Save"></div>
+</form>
+#+end_src
+
+view.html
+#+begin_src html
+<h1>{{.Title}}</h1>
+
+<p>[<a href="/edit/{{.Title}}">edit</a>]</p>
+
+<div>{{printf "%s" .Body}}</div>
+#+end_src  
+
+wiki.go
+#+begin_src go
+package main
+
+import (
+	"html/template"
+	"log"
+	"net/http"
+	"os"
+)
+
+type Page struct {
+	Title string
+	Body  []byte // https://go.dev/doc/articles/slices_usage_and_internals.html
+}
+
+func (p *Page) save() error {
+	filename := p.Title + ".txt"
+	//  the file should be created with read-write permissions for the current user only.
+	// the Unix man page open(2) for details.
+	return os.WriteFile(filename, p.Body, 0600)
+}
+
+func loadPage(title string) (*Page, error) {
+	filename := title + ".txt"
+	body, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return &Page{Title: title, Body: body}, nil
+}
+
+func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
+	t, _ := template.ParseFiles(tmpl + ".html")
+	t.Execute(w, p)
+}
+
+func viewHandler(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Path[len("/view/"):]
+	p, _ := loadPage(title) // ignore the error,generally considered bad practice.
+	renderTemplate(w, "view", p)
+}
+
+func editHandler(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Path[len("/edit/"):]
+	p, err := loadPage(title)
+	if err != nil {
+		p = &Page{Title: title}
+	}
+	renderTemplate(w, "edit", p)
+}
+
+func main() {
+	http.HandleFunc("/view/", viewHandler)
+	http.HandleFunc("/edit/", editHandler)
+	// http.HandleFunc("/save/", saveHandler)
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+#+end_src
+
+=template.ParseFiles= will read the contents of =edit.html= and return a =*template.Template.=
+
+=t.Execute= executes the template, writing the generated HTML to the =http.ResponseWriter.=
+  The .Title and .Body dotted identifiers refer to p.Title and p.Body.
+
+=Template directives are enclosed in double curly braces.=
+
+The =printf "%s" .Body= instruction is a function call that outputs .Body =as a string instead of a stream of bytes=, =the same as a call to fmt.Printf.=
+
+The html/template package helps guarantee that only safe and correct-looking HTML is generated by template actions.
+  it automatically escapes any greater than sign (>), replacing it with &gt;
+
+~go run wiki.go~
+
+or
+
+~go build wiki.go~
+~./wiki~
+
+** Handling non-existent pages && Saving Pages
+
+if the requested Page doesn't exist, it should =redirect= the client to the edit Page so the content may be created
+
+The function saveHandler will handle the =submission of forms= located on the edit pages.
+
+wiki.go
+#+begin_src go
+package main
+
+import (
+	"html/template"
+	"log"
+	"net/http"
+	"os"
+)
+
+type Page struct {
+	Title string
+	Body  []byte // https://go.dev/doc/articles/slices_usage_and_internals.html
+}
+
+func (p *Page) save() error {
+	filename := p.Title + ".txt"
+	//  the file should be created with read-write permissions for the current user only.
+	// the Unix man page open(2) for details.
+	return os.WriteFile(filename, p.Body, 0600)
+}
+
+func loadPage(title string) (*Page, error) {
+	filename := title + ".txt"
+	body, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return &Page{Title: title, Body: body}, nil
+}
+
+func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
+	t, _ := template.ParseFiles(tmpl + ".html")
+	t.Execute(w, p)
+}
+
+func viewHandler(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Path[len("/view/"):]
+	p, err := loadPage(title) // ignore the error,generally considered bad practice.
+	if err != nil {
+		http.Redirect(w, r, "/edit/"+title, http.StatusNotFound)
+		return
+	}
+	renderTemplate(w, "view", p)
+}
+
+func editHandler(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Path[len("/edit/"):]
+	p, err := loadPage(title)
+	if err != nil {
+		p = &Page{Title: title}
+	}
+	renderTemplate(w, "edit", p)
+}
+
+func saveHandler(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Path[len("/save/"):]
+	body := r.FormValue("body")
+	p := &Page{Title: title, Body: []byte(body)}
+	p.save()
+	http.Redirect(w, r, "/view/"+title, http.StatusFound)
+}
+
+func main() {
+	http.HandleFunc("/view/", viewHandler)
+	http.HandleFunc("/edit/", editHandler)
+	http.HandleFunc("/save/", saveHandler)
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+#+end_src
+
+** Error handling
+
+A better solution is to handle the errors and return an error message to the user.
+
+wiki.go
+#+begin_src go
+package main
+
+import (
+	"html/template"
+	"log"
+	"net/http"
+	"os"
+)
+
+type Page struct {
+	Title string
+	Body  []byte // https://go.dev/doc/articles/slices_usage_and_internals.html
+}
+
+func (p *Page) save() error {
+	filename := p.Title + ".txt"
+	//  the file should be created with read-write permissions for the current user only.
+	// the Unix man page open(2) for details.
+	return os.WriteFile(filename, p.Body, 0600)
+}
+
+func loadPage(title string) (*Page, error) {
+	filename := title + ".txt"
+	body, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return &Page{Title: title, Body: body}, nil
+}
+
+func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
+	t, err := template.ParseFiles(tmpl + ".html")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	err = t.Execute(w, p)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func viewHandler(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Path[len("/view/"):]
+	p, err := loadPage(title) // ignore the error,generally considered bad practice.
+	if err != nil {
+		http.Redirect(w, r, "/edit/"+title, http.StatusNotFound)
+		return
+	}
+	renderTemplate(w, "view", p)
+}
+
+func editHandler(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Path[len("/edit/"):]
+	p, err := loadPage(title)
+	if err != nil {
+		p = &Page{Title: title}
+	}
+	renderTemplate(w, "edit", p)
+}
+
+func saveHandler(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Path[len("/save/"):]
+	body := r.FormValue("body")
+	p := &Page{Title: title, Body: []byte(body)}
+	err := p.save()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/view/"+title, http.StatusFound)
+}
+
+func main() {
+	http.HandleFunc("/view/", viewHandler)
+	http.HandleFunc("/edit/", editHandler)
+	http.HandleFunc("/save/", saveHandler)
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+#+end_src
+
+=http.Error= function sends a specified HTTP response code (in this case "Internal Server Error") and error message.
+
+** Template caching¶
+
+renderTemplate calls ParseFiles every time a page is rendered.
+
+A better approach would be to call ParseFiles once =at program initialization,=
+                              =parsing all templates into a single *Template.=
+
+[[https://go.dev/pkg/html/template/#Template.ExecuteTemplate][ExecuteTemplate]] method to render a specific template.
+
+#+begin_src go
+var templates = template.Must(template.ParseFiles("edit.html", "view.html"))
+
+func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
+	err := templates.ExecuteTemplate(w, tmpl+".html", p)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+#+end_src
+
+** Validation
+
+a user can supply an arbitrary path to be read/written on the server.
+
+To mitigate this, we can write a function to validate the title with a regular expression.
+
+=create a global variable to store our validation expression=
+
+The function regexp.MustCompile will parse and compile the regular expression, and return a regexp.
+
+MustCompile =will panic if the expression compilation fails=
+
+#+begin_src go
+package main
+
+import (
+	"errors"
+	"html/template"
+	"log"
+	"net/http"
+	"os"
+	"regexp"
+)
+
+type Page struct {
+	Title string
+	Body  []byte // https://go.dev/doc/articles/slices_usage_and_internals.html
+}
+
+func (p *Page) save() error {
+	filename := p.Title + ".txt"
+	//  the file should be created with read-write permissions for the current user only.
+	// the Unix man page open(2) for details.
+	return os.WriteFile(filename, p.Body, 0600)
+}
+
+func loadPage(title string) (*Page, error) {
+	filename := title + ".txt"
+	body, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return &Page{Title: title, Body: body}, nil
+}
+
+var templates = template.Must(template.ParseFiles("edit.html", "view.html"))
+
+func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
+	err := templates.ExecuteTemplate(w, tmpl+".html", p)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
+
+func getTitle(w http.ResponseWriter, r *http.Request) (string, error) {
+	m := validPath.FindStringSubmatch(r.URL.Path)
+	if m == nil {
+		http.NotFound(w, r)
+		return "", errors.New("invalid Page Title")
+	}
+	return m[2], nil // The title is the second subexpression.
+}
+
+func viewHandler(w http.ResponseWriter, r *http.Request) {
+	title, err := getTitle(w, r)
+	if err != nil {
+		return
+	}
+	p, err := loadPage(title) // ignore the error,generally considered bad practice.
+	if err != nil {
+		http.Redirect(w, r, "/edit/"+title, http.StatusNotFound)
+		return
+	}
+	renderTemplate(w, "view", p)
+}
+
+func editHandler(w http.ResponseWriter, r *http.Request) {
+	title, err := getTitle(w, r)
+	if err != nil {
+		return
+	}
+	p, err := loadPage(title)
+	if err != nil {
+		p = &Page{Title: title}
+	}
+	renderTemplate(w, "edit", p)
+}
+
+func saveHandler(w http.ResponseWriter, r *http.Request) {
+	title, err := getTitle(w, r)
+	if err != nil {
+		return
+	}
+	body := r.FormValue("body")
+	p := &Page{Title: title, Body: []byte(body)}
+	err = p.save()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/view/"+title, http.StatusFound)
+}
+
+func main() {
+	http.HandleFunc("/view/", viewHandler)
+	http.HandleFunc("/edit/", editHandler)
+	http.HandleFunc("/save/", saveHandler)
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+#+end_src
+
+** Introducing Function Literals and Closures!!! 注意这里怎么把函数公共部分抽出来的
+
+we could wrap each of the handlers in a function that does this validation and error checking?
+
+Go's [[https://go.dev/ref/spec#Function_literals][function literals]]
+
+#+begin_src go
+func viewHandler(w http.ResponseWriter, r *http.Request, title string)
+func editHandler(w http.ResponseWriter, r *http.Request, title string)
+func saveHandler(w http.ResponseWriter, r *http.Request, title string)
+#+end_src
+
+define a wrapper function that takes a function of the above type, and returns a function of type http.HandlerFunc (suitable to be passed to the function http.HandleFunc)
+
+#+begin_src go
+  func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+      return func(w http.ResponseWriter, r *http.Request) {
+          // Here we will extract the page title from the Request,
+          // and call the provided handler 'fn'
+          m := validPath.FindStringSubmatch(r.URL.Path)
+          if m == nil {
+              http.NotFound(w, r)
+              return
+          }
+          fn(w, r, m[2])  	    
+      }
+  }
+#+end_src
+
+=The returned function is called a closure because it encloses values defined outside of it.=
+  In this case, the variable fn (the single argument to makeHandler) is enclosed by the closure.
+fluent python 那本书中说闭包就是函数的作用域变大了 同时 函数也是一等公民
+
+#+begin_src go
+package main
+
+import (
+	"errors"
+	"html/template"
+	"log"
+	"net/http"
+	"os"
+	"regexp"
+)
+
+type Page struct {
+	Title string
+	Body  []byte // https://go.dev/doc/articles/slices_usage_and_internals.html
+}
+
+func (p *Page) save() error {
+	filename := p.Title + ".txt"
+	//  the file should be created with read-write permissions for the current user only.
+	// the Unix man page open(2) for details.
+	return os.WriteFile(filename, p.Body, 0600)
+}
+
+func loadPage(title string) (*Page, error) {
+	filename := title + ".txt"
+	body, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return &Page{Title: title, Body: body}, nil
+}
+
+var templates = template.Must(template.ParseFiles("edit.html", "view.html"))
+
+func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
+	err := templates.ExecuteTemplate(w, tmpl+".html", p)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
+
+func getTitle(w http.ResponseWriter, r *http.Request) (string, error) {
+	m := validPath.FindStringSubmatch(r.URL.Path)
+	if m == nil {
+		http.NotFound(w, r)
+		return "", errors.New("invalid Page Title")
+	}
+	return m[2], nil // The title is the second subexpression.
+}
+
+func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
+	p, err := loadPage(title) // ignore the error,generally considered bad practice.
+	if err != nil {
+		http.Redirect(w, r, "/edit/"+title, http.StatusNotFound)
+		return
+	}
+	renderTemplate(w, "view", p)
+}
+
+func editHandler(w http.ResponseWriter, r *http.Request, title string) {
+	p, err := loadPage(title)
+	if err != nil {
+		p = &Page{Title: title}
+	}
+	renderTemplate(w, "edit", p)
+}
+
+func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
+	body := r.FormValue("body")
+	p := &Page{Title: title, Body: []byte(body)}
+	err := p.save()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/view/"+title, http.StatusFound)
+}
+
+func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		m := validPath.FindStringSubmatch(r.URL.Path)
+		if m == nil {
+			http.NotFound(w, r)
+			return
+		}
+		fn(w, r, m[2])
+	}
+}
+
+func main() {
+	http.HandleFunc("/view/", makeHandler(viewHandler))
+	http.HandleFunc("/edit/", makeHandler(editHandler))
+	http.HandleFunc("/save/", makeHandler(saveHandler))
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+#+end_src
+
+~go build wiki.go~
+~./wiki~
+
+* How to Write Go Code
+** Code organization
+
+=Go programs are organized into packages.=
+=A package is a collection of source files in the same directory that are compiled together.=
+Functions, types, variables, and constants defined in one source file are visible to all other source files within the same package.
+[[*Exported names]]
+
+
+=A repository contains one or more modules.=
+=A module is a collection of related Go packages=
+=go.mod file=
+  根目录下的 go.mod 文件声明了模块路径，也就是模块中所有包的导入路径前缀。
+模块包含 go.mod 所在目录中的所有包，以及这个目录的子目录中的包，
+直到遇到某个子目录中又有一个新的 go.mod 文件为止（如果有的话）。
+
+Go 支持嵌套模块，一旦某个子目录中又有一个 go.mod，它就会被识别为另一个独立模块，不再属于父模块的一部分。
+
+Each module's path not only serves as =an import path prefix for its packages,=
+                   but also =indicates where the go command should look to download it.=
+
+=A package's import path is its module path joined with its subdirectory within the module.=
+** Your first program
+
+~mkdir hello;cd hello~
+
+~go mod init example/user/hello~
+
+~cat go.mod~
+module example/user/hello
+
+go 1.16
+
+=Executable commands must always use package main.=
+
+hello.go
+#+begin_src go
+package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("Hello, world.")
+}
+#+end_src
+
+~go install example/user/hello~
+This command builds the hello command, producing an executable binary.
+It then installs that binary as =$HOME/go/bin/hello=
+  controlled by the =GOPATH and GOBIN= [[https://go.dev/cmd/go/#hdr-Environment_variables][environment variables]]
+
+can use the =go env= command to portably set the default value for an environment variable for future go commands:
+~go env -w GOBIN=/somewhere/else/bin~
+
+To unset a variable previously set by =go env -w=, use =go env -u=:
+~go env -u GOBIN~
+
+~go install~
+
+For convenience, =go commands accept paths relative to the working directory, and default to the package in the current working directory if no other path is given.=
+
+#+begin_src shell
+go install example/user/hello
+go install . # equal
+go install # equal
+#+end_src
+
+#+begin_src shell
+export PATH=$PATH:$(dirname $(go list -f '{{.Target}}' .))
+hello
+#+end_src
+
+#+begin_src shell
+git init
+git add go.mod hello.go
+git commit -m "initial commit"
+#+end_src
+
+The go command locates the repository containing a given module path by requesting a corresponding HTTPS URL and reading metadata embedded in the HTML response (see [[https://go.dev/cmd/go/#hdr-Remote_import_paths][go help importpath]]).
+** Importing packages from your module
+
+$HOME/hello/morestrings/reverse.go
+#+begin_src go
+// Package morestrings implements additional functions to manipulate UTF-8
+// encoded strings, beyond what is provided in the standard "strings" package.
+package morestrings
+
+// ReverseRunes returns its argument string reversed rune-wise left to right.
+func ReverseRunes(s string) string {
+    r := []rune(s)
+    for i, j := 0, len(r)-1; i < len(r)/2; i, j = i+1, j-1 {
+        r[i], r[j] = r[j], r[i]
+    }
+    return string(r)
+}
+#+end_src
+
+Because our ReverseRunes function begins with an upper-case letter, it is [[https://go.dev/ref/spec#Exported_identifiers][exported]]
+[[*Exported names]]
+
+~cd $HOME/hello/morestrings~
+~go build~
+  =it saves the compiled package in the local build cache.=
+
+$HOME/hello/hello.go
+#+begin_src go
+package main
+
+import (
+    "fmt"
+
+    "example/user/hello/morestrings"
+)
+
+func main() {
+    fmt.Println(morestrings.ReverseRunes("!oG ,olleH"))
+}
+#+end_src
+
+~go install example/user/hello~
+** Importing packages from remote modules
+
+=An import path can describe how to obtain the package source code using a revision control system such as Git or Mercurial.=
+
+$HOME/hello/hello.go
+#+begin_src go
+package main
+
+import (
+    "fmt"
+
+    "example/user/hello/morestrings"
+    "github.com/google/go-cmp/cmp"
+)
+
+func main() {
+    fmt.Println(morestrings.ReverseRunes("!oG ,olleH"))
+    fmt.Println(cmp.Diff("Hello World", "Hello Go"))
+}
+#+end_src
+
+~go mod tidy~
+  adds missing module requirements for imported packages and removes requirements on modules that aren't used anymore.
+~go install example/user/hello~
+~cat go.mod~
+
+module example/user/hello
+
+go 1.16
+
+require github.com/google/go-cmp v0.5.4
+
+=Module dependencies are automatically downloaded to the pkg/mod subdirectory of the directory indicated by the GOPATH environment variable.=
+~go clean -modcache~
+  To remove all downloaded modules, you can pass the -modcache flag to go clean
+** Testing
+=You write a test by creating a file with a name ending in _test.go that contains functions named TestXXX with signature func (t *testing.T).=
+
+[[*unit test]]
+
+if the function calls a failure function such as =t.Error or t.Fail=, the test is considered to have failed.
+
+$HOME/hello/morestrings/reverse_test.go
+#+begin_src go
+package morestrings
+
+import "testing"
+
+func TestReverseRunes(t *testing.T) {
+    cases := []struct {
+        in, want string
+    }{
+        {"Hello, world", "dlrow ,olleH"},
+        {"Hello, 世界", "界世 ,olleH"},
+        {"", ""},
+    }
+    for _, c := range cases {
+        got := ReverseRunes(c.in)
+        if got != c.want {
+            t.Errorf("ReverseRunes(%q) == %q, want %q", c.in, got, c.want)
+        }
+    }
+}
+#+end_src
+
+
+~cd $HOME/hello/morestrings~
+~go test~
+
+[[https://go.dev/cmd/go/#hdr-Test_packages][go help test]]
+* GO in Action
+
+#+begin_src go
+import (
+  _ “github.com/goinaction/code/chapter2/sample/matchers”
+)
+#+end_src
+
+=“下划线让编译器接受这类导入，并且调用对应包内的所有代码文件里定义的init函数。”=
+rust也有这个功能
+
+=“程序中每个代码文件里的init函数都会在main函数执行前调用。”=
+类似python导包同样有这个功能
+
+=“编译器查找包的时候，总是会到GOROOT和GOPATH环境变量引用的位置去查找。”=
+
+=“变量没有定义在任何函数作用域内，会被当成包级变量。”=
+
+=“在Go语言里，标识符要么从包里公开，要么不从包里公开。当代码导入了一个包时，程序可以直接访问这个包中任意一个公开的标识符。这些标识符以大写字母开头。以小写字母开头的标识符是不公开的，不能被其他包中的代码直接访问。”=
+[[*Exported names]]
+
+=“在Go语言中，所有变量都被初始化为其零值。”=
+
+=“（:=）, 这个运算符用于声明一个变量，同时给这个变量赋予初始值。”=
+
+=“在Go语言中，通道（channel）和映射（map）与切片（slice）一样，也是引用类型，不过通道本身实现的是一组带类型的值，这组值用于在goroutine之间传递数据。”=
+
+=“在Go语言中，如果main函数返回，整个程序也就终止了。Go程序终止时，还会关闭所有之前启动且还在运行的goroutine。写并发程序的时候，最佳做法是，在main函数返回前，清理并终止所有之前启动的goroutine。编写启动和终止时的状态都很清晰的程序，有助减少bug，防止资源异常。”=
+
+=“非常推荐使用WaitGroup来跟踪goroutine的工作是否完成。WaitGroup是一个计数信号量，我们可以利用它来统计所有的goroutine是不是都完成了工作。”=
+
+=“使用for range迭代切片时，每次迭代会返回两个值。第一个值是迭代的元素在切片里的索引位置，第二个值是元素值的一个副本。”=
+
+=“下划线标识符的作用是占位符, 如果要调用的函数返回多个值，而又不需要其中的某个值，就可以使用下划线标识符将其忽略。”=
+
+=注意如何使用匿名函数 匿名结构体数组=
+#+begin_src go
+go func(matcher Matcher, feed *Feed) {
+    Match(matcher, feed, searchTerm, results)
+    waitGroup.Done()
+}(matcher, feed)
+#+end_src
+
+=“在Go语言中，所有的变量都以值的方式传递。因为指针变量的值是所指向的内存地址，在函数间传递指针变量，是在传递这个地址值，所以依旧被看作以值的方式在传递。”=
+
+=“有了闭包，函数可以直接访问到那些没有作为参数传入的变量。匿名函数并没有拿到这些变量的副本，而是直接访问外层函数作用域中声明的这些变量本身。”=
+=closures can capture values from the scope in which they’re defined.!!!=
+闭包是一等公民 + env 捕获
+
+=“Go编译器可以根据赋值运算符右边的值来推导类型，声明常量的时候不需要指定类型。”=
+
+=“结构体中，每个字段的声明最后 ` 引号里的部分被称作标记（tag）。”=
+结构体中的 Tag 是一种“元数据”，
+是给程序在运行时（通过反射）额外读取的一些信息。
+主要作用是：
+  告诉序列化、数据库、验证框架等外部程序
+  如何处理这个字段
+
+=“关键字defer会安排随后的函数调用在函数返回时才执行。”=
+
+=interface{} “这个类型在Go语言里很特殊，一般会配合reflect包里提供的反射功能一起使用。”=
+
+=“命名接口的时候，也需要遵守Go语言的命名惯例。如果接口类型只包含一个方法，那么这个类型的名字以er结尾。”=
+
+#+begin_src go
+// defaultMatcher实现了默认匹配器
+type defaultMatcher struct{}
+#+end_src
+
+=“空结构在创建实例时，不会分配任何内存。这种结构很适合创建没有任何状态的类型。”=
+
+[[*Pointer receivers]]
+[[*Pointers and functions]]
+[[*Methods and pointer indirection]]
+[[*Methods and pointer indirection (2)]]
+
+=“使用指针作为接收者声明的方法，只能在接口类型的值是一个指针的时候被调用。=
+=使用值作为接收者声明的方法，在接口类型的值为值或者指针时，都可以被调用。”=
+#+begin_src go
+// 方法声明为使用指向defaultMatcher类型值的指针作为接收者
+func (m *defaultMatcher) Search(feed *Feed, searchTerm string)
+
+// 通过interface类型的值来调用方法
+var dm defaultMatcher
+var matcher Matcher = dm     // 将值赋值给接口类型
+matcher.Search(feed, "test") // 使用值来调用接口方法
+
+> go build
+cannot use dm (type defaultMatcher) as type Matcher in assignment
+
+// 方法声明为使用defaultMatcher类型的值作为接收者
+func (m defaultMatcher) Search(feed *Feed, searchTerm string)
+
+// 通过interface类型的值来调用方法
+var dm defaultMatcher
+var matcher Matcher = &dm    // 将指针赋值给接口类型
+matcher.Search(feed, "test") // 使用指针来调用接口方法
+
+> go build
+Build Successful
+#+end_src
+
+函数传递channel方式	说明
+chan T	        发送和接收都可以
+chan<- T        	只发送，发送方向的 channel（安全，防止误用）
+<-chan T        	只接收，接收方向的 channel（安全，防止误用）
+
+~for xxx := range channel~
+   =通道会一直被阻塞，直到有结果写入=
+   =一旦通道被关闭，for循环就会终止=
+
+=“程序里所有的init方法都会在main函数启动前被调用。”=
+
+[[*If with a short statement]]
+
+在 Go 中，
+✅ 如果你在函数返回值里返回了局部变量的引用（指针），
+✅ Go 编译器会自动把局部变量"逃逸"到堆上，
+✅ 不会因为函数栈帧弹出而析构或释放！
+=只要你返回了局部变量的地址，Go 就智能地把这个变量从栈搬到堆，保证在函数外还能继续用，绝对不会悬挂！=
+
+=“append这个内置函数会根据切片需要，决定是否要增加切片的长度和容量。”=
+
+=“在Go语言里，包是个非常重要的概念。其设计理念是使用包来封装不同语义单元的功能。”=
+  “每个包都在一个单独的目录里。”
+  “给包命名的惯例是使用包所在目录的名字。”
+
+=“程序编译时，会使用声明main包的代码所在的目录的目录名作为二进制可执行文件的文件名。”=
+
+http://golang.org/pkg
+~go install golang.org/x/tools/cmd/godoc@latest~
+~godoc xxx~
+
+~go build~
+  生成二进制文件
+
+=“编译器会使用Go环境变量设置的路径，通过引入的相对路径来查找磁盘上的包。=
+=标准库中的包会在安装Go的位置找到。=
+=Go开发者创建的包会在GOPATH环境变量指定的目录里查找。”=
+=“GOPATH指定的这些目录就是开发者的个人工作空间。”=
+=“编译器会首先查找Go的安装目录，然后才会按顺序查找GOPATH变量里列出的目录。”=
+
+=“Go语言的工具链本身就支持从如GitHub、Launchpad还有Bitbucket这些网站及类似网站获取源代码。”=
+~go get~
+  Distributed Version Control Systems, DVCS
+  “从DVCS获取包，并把包的源代码保存在GOPATH指向的路径里与URL匹配的目录里。”
+
+=命名导入=
+#+begin_src go
+import (
+  "fmt"
+  myfmt "mylib/fmr"
+)
+#+end_src
+=“使用空白标识符_来重命名这个导入。可以导入不使用这个包=
+像在python中可以忽略返回值
+
+=“每个包可以包含任意多个init函数，这些函数都会在程序执行开始的时候被调用。”=
+=“init函数用在设置包、初始化变量或者其他要在程序运行前优先完成的引导工作。”=
+
+=“在使用这个新的数据库驱动写程序时，我们使用空白标识符来导入包，以便新的驱动会包含到sql包。”=
+#+begin_src go
+import (
+  "sql"
+  _ “github.com/goinaction/code/chapter3/dbdriver/postgres”  // 使用空白标识符导入包，避免编译错误。
+)
+
+func main() {
+  sql.Open("postgres", "mydb") // “调用sql包提供的Open方法。该方法能工作的关键在于postgres驱动通过自己的init函数将自身注册到了sql包。”
+}
+#+end_src
+
+Usage:
+
+        go <command> [arguments]
+
+The commands are:
+
+        bug         start a bug report
+        build       compile packages and dependencies
+        clean       remove object files and cached files
+        doc         show documentation for package or symbol
+        env         print Go environment information
+        fix         update packages to use new APIs
+        fmt         gofmt (reformat) package sources
+        generate    generate Go files by processing source
+        get         add dependencies to current module and install them
+        install     compile and install packages and dependencies
+        list        list packages or modules
+        mod         module maintenance
+        work        workspace maintenance
+        run         compile and run Go program
+        telemetry   manage telemetry data and settings
+        test        test packages
+        tool        run specified go tool
+        version     print Go version
+        vet         report likely mistakes in packages
+
+Use "go help <command>" for more information about a command.
+
+Additional help topics:
+
+        buildconstraint build constraints
+        buildjson       build -json encoding
+        buildmode       build modes
+        c               calling between Go and C
+        cache           build and test caching
+        environment     environment variables
+        filetype        file types
+        goauth          GOAUTH environment variable
+        go.mod          the go.mod file
+        gopath          GOPATH environment variable
+        goproxy         module proxy protocol
+        importpath      import path syntax
+        modules         modules, module versions, and more
+        module-auth     module authentication using go.sum
+        packages        package lists and patterns
+        private         configuration for downloading non-public code
+        testflag        testing flags
+        testfunc        testing functions
+        vcs             controlling version control with GOVCS
+
+Use "go help <topic>" for more information about that topic.
+
+~go vet~
+  =“vet命令会帮开发人员检测代码的常见错误。”=
+
+~go fmt package/*.go~
+  =“fmt工具会将开发人员的代码布局成和Go源代码类似的风格”=
+
+~go doc xxx~
+  “可以在终端上直接使用go doc命令来打印文档”
+~go doc -http=:6060~
+
+=“如果开发人员遵从一个简单的规则来写代码，这些代码就会自动包含在godoc生成的文档里。”=
+  "函数的文档直接写在函数声明之前，使用人类可读的句子编写。"
+  "如果想给包写一段文字量比较大的文档，可以在工程里包含一个叫作doc.go的文件，使用同样的包名，并把包的介绍使用注释加在包名声明之前。"
+
+“Go开发者用godoc来阅读文档，并且会用http://godoc.org 这个网站来阅读开源包的文档。”
+
+=“现在最流行的依赖管理工具是Keith Rarik写的godep、Daniel Theophanes写的vender和Gustavo Niemeyer开发的gopkg.in工具。”=
+  “像godep和vender这种社区工具已经使用第三方（verdoring）导入路径重写这种特性解决了依赖问题。”
+    “像godep和vender这种社区工具已经使用第三方（verdoring）导入路径重写这种特性解决了依赖问题。其思想是把所有的依赖包复制到工程代码库中的目录里，然后使用工程内部的依赖包所在目录来重写所有的导入路径。”
+    “可以看到godep创建了一个叫作Godeps的目录。由这个工具管理的依赖的源代码被放在一个叫作_workspace/src的目录里。”
+
+#+begin_src go
+package main
+  
+import (
+  "bitbucket.org/ww/goautoneg"
+  "github.com/beorn7/perks"
+)
+#+end_src
+
+#+begin_src go
+package main
+  
+import (
+  "github.ardanstudios.com/myproject/Godeps/_workspace/src/bitbucket.org/ww/goautoneg"
+  "github.ardanstudios.com/myproject/Godeps/_workspace/src/github.com/beorn7/perks"
+)
+#+end_src
+
+    “在路径重写之前，import语句使用的是包的正常路径。包对应的代码存放在GOPATH所指定的磁盘目录里。在依赖管理之后，导入路径需要重写成工程内部依赖包的路径。”
+    “使用导入路径重写管理依赖包的另外一个好处是这个工程依旧支持通过go get获取代码库。当获取这个工程的代码库时，go get可以找到每个包，并将其保存到工程里正确的目录中。”
+
+  =“gb既不包装Go工具链，也不使用GOPATH。gb基于工程将Go工具链工作空间的元信息做替换。这种依赖管理的方法不需要重写工程内代码的导入路径。而且导入路径依旧通过go get和GOPATH工作空间来管理。”=
+    “gb 一个最好的特点是，不需要重写导入路径。可以看看这个工程里的main.go文件的import语句——没有任何需要为导入第三方库而做的修改。”
+    “gb工具首先会在$PROJECT/src/目录中查找代码，如果找不到，会在$PROJECT/vender/src/目录里查找。”
+    =“gb工程与Go官方工具链（包括go get）并不兼容。因为gb不需要设置GOPATH，而Go工具链无法理解gb工程的目录结构，所以无法用Go工具链构建、测试或者获取代码。”=
+    ~gb build all~
+    getgb.io
+
+=“数组的类型信息可以提供每次访问一个元素时需要在内存中移动的距离。既然数组的每个元素类型相同，又是连续分配，就可以以固定速度索引数组中的任意数据，速度非常快。”=
+  “数组的类型信息可以提供每次访问一个元素时需要在内存中移动的距离。既然数组的每个元素类型相同，又是连续分配，就可以以固定速度索引数组中的任意数据，速度非常快。”
+
+声明和初始化数组
+  ~“array := [5]int{10, 20, 30, 40, 50}”~
+  “数组字面量允许声明数组里元素的数量同时指定每个元素的值”
+
+  ~“array := [...]int{10, 20, 30, 40, 50}”~
+  =“如果使用...替代数组的长度，Go 语言会根据初始化时数组元素的数量来确定该数组的长度”=
+
+  ~“array := [5]int{1: 10, 2: 20}”~
+  =“如果知道数组的长度而是准备给每个值都指定具体值”=
+
+  ~“array := [5]*int{0: new(int), 1: new(int)}”~
+
+=“在Go语言里，数组是一个值。这意味着数组可以用在赋值操作中。”=
+  ~var array1 [5]string~
+  ~array2 := [5]string{"Red", "Blue", "Green", "Yellow", "Pink"}~
+  ~array1 = array2~
+
+=多纬数组=
+  ~“array := [4][2]int{{10, 11}, {20, 21}, {30, 31}, {40, 41}}”~
+  ~“array := [4][2]int{1: {20, 21}, 3: {40, 41}}”~
+  ~“array := [4][2]int{1: {0: 20}, 3: {1: 41}}”~
+
+#+begin_src go
+var array1 [2][2]int
+
+array1[0][0] = 10
+array1[0][1] = 20
+array1[1][0] = 30
+array1[1][1] = 40
+
+// 将array1的索引为1的维度复制到一个同类型的新数组里
+var array3 [2]int = array1[1]
+
+// 将外层数组的索引为1、内层数组的索引为0的整型值复制到新的整型变量里
+var value int = array1[1][0]
+#+end_src
+
+“这个操作会更有效地利用内存，性能也更好。不过要意识到，因为现在传递的是指针，所以如果改变指针指向的值，会改变共享的内存。如你所见，使用切片能更好地处理这类共享问题。”
+
+=“切片的动态增长是通过内置函数append来实现的。”=
+
+=“切片有3个字段的数据结构，这些数据结构包含Go语言需要操作底层数组的元数据”=
+[ [address] [len] [cap] ]
+
+“make和切片字面量”
+  “一种创建切片的方法是使用内置的make函数。”
+  ~slice := make([]string, 5)~
+  =“如果基于这个切片创建新的切片，新切片会和原有切片共享底层数组，也能通过后期操作来访问多余容量的元素。”=
+  
+  =“另一种常用的创建切片的方法是使用切片字面量，如下所示。这种方法和创建数组类似，只是不需要指定[]运算符里的值。”=
+  ~slice := []string{"Red", "Blue", "Green", "Yellow", "Pink"}~
+  ~slice := []string{99 : ""}~
+
+  =“记住，如果在[]运算符里指定了一个值，那么创建的就是数组而不是切片。只有不指定值的时候，才会创建切片。”=
+
+“nil切片的表示”
+  [ [nil] [0] [0] ]
+
+“使用make创建空的整型切片”
+~slice := make([]int, 0)~
+“使用切片字面量创建空的整型切片”
+~slice := []int{}~
+
+“当append调用返回时，会返回一个包含修改结果的新切片。函数append总是会增加新切片的长度，而容量有可能会改变，也可能不会改变，这取决于被操作的切片的可用容量。”
+
+“如果切片的底层数组没有足够的可用容量，append函数会创建一个新的底层数组，将被引用的现有的值复制到新数组里，再追加新的值。”
+
+“函数append会智能地处理底层数组的容量增长。在切片的容量小于1000个元素时，总是会成倍地增加容量。一旦元素个数超过1000，容量的增长因子会设为1.25，也就是会每次增加25%的容量。随着语言的演化，这种增长算法可能会有所改变。”
+
+// “其长度为1个元素，容量为2个元素”
+~slice := source[2:3:4]~
+
+=“如果在创建切片时设置切片的容量和长度一样，就可以强制让新切片的第一个append操作创建新的底层数组，与原有的底层数组分离。新切片与原有的底层数组分离后，可以安全地进行后续修改，如下所示。”=
+#+begin_src go
+// 创建字符串切片
+// 其长度和容量都是5个元素
+source := []string{"Apple", "Orange", "Plum", "Banana", "Grape"}
+
+// 对第三个元素做切片，并限制容量
+// 其长度和容量都是1个元素
+slice := source[2:3:3]
+
+// 向slice追加新字符串
+slice = append(slice, "Kiwi")
+#+end_src
+
+如果不加第三个索引，由于剩余的所有容量都属于slice，向slice追加Kiwi会改变原有底层数组索引为3的元素的值Banana。
+不过在上面我们限制了slice的容量为1。
+=当我们第一次对slice调用append的时候，会创建一个新的底层数组，这个数组包括2个元素，并将水果Plum复制进来，再追加新水果Kiwi，并返回一个引用了这个底层数组的新切片。=
+“因为新的切片slice拥有了自己的底层数组，所以杜绝了可能发生的问题。我们可以继续向新切片里追加水果，而不用担心会不小心修改了其他切片里的水果。同时，也保持了为切片申请新的底层数组的简洁。”
+
+“如果使用...运算符，可以将一个切片的所有元素追加到另一个切片里，如下所示。”
+#+begin_src go
+// 创建两个切片，并分别用两个整数进行初始化
+s1 := []int{1, 2}
+
+s2 := []int{3, 4}
+
+// 将两个切片追加在一起，并显示结果
+fmt.Printf("%v\n", append(s1, s2...))
+
+Output:
+[1 2 3 4]
+#+end_src
+
+~for index, value := range slice {}~
+=“第二个值是该位置对应元素值的一份副本。”=
+
+#+begin_src go
+// 创建一个整型切片
+// 其长度和容量都是4个元素
+slice := []int{10, 20, 30, 40}
+
+// 迭代每个元素，并显示值和地址
+for index, value := range slice {
+　　fmt.Printf("Value: %d　Value-Addr: %X　ElemAddr: %X\n",
+　　　　value, &value, &slice[index])
+}
+
+Output:
+Value: 10　Value-Addr: 10500168　ElemAddr: 1052E100
+Value: 20　Value-Addr: 10500168　ElemAddr: 1052E104
+Value: 30　Value-Addr: 10500168　ElemAddr: 1052E108
+Value: 40　Value-Addr: 10500168　ElemAddr: 1052E10C
+#+end_src
+
+=“因为迭代返回的变量是一个迭代过程中根据切片依次赋值的新变量，所以value的地址总是相同的。要想获取每个元素的地址，可以使用切片变量和索引值。”=
+
+多维切片
+#+begin_src go
+// 创建一个整型切片的切片
+slice := [][]int{{10}, {100, 200}}
+#+end_src
+
+[ [address1] [2] [2] ]
+
+address1[0]:
+[ [address2] [1] [1] ]
+
+address2:
+10
+
+address1[1]:
+[ [address3] [2] [2] ]
+
+address3:
+[100, 200]
+
+“可以看到组合切片的操作是如何将一个切片嵌入到另一个切片中的。外层的切片包括两个元素，每个元素都是一个切片。”
+
+#+begin_src go
+// 创建一个整型切片的切片
+slice := [][]int{{10}, {100, 200}}
+
+// 为第一个切片追加值为20的元素
+slice[0] = append(slice[0], 20)
+#+end_src
+
+“操作完成后，会为新的整型切片分配新的底层数组，然后将切片复制到外层切片的索引为0的元素。”
+
+=“在函数间传递切片就是要在函数间以值的方式传递切片。”=
+
+=“无序的原因是映射的实现使用了散列表”=
+[[./pictures/go/1.png]]
+
+“映射的散列表包含一组桶。在存储、删除或者查找键值对的时候，所有操作都要先选择一个桶。把操作映射时指定的键传给映射的散列函数，就能选中对应的桶。这个散列函数的目的是生成一个索引，这个索引最终将键值对分布到所有可用的桶里。”
+
+“对Go语言的映射来说，生成的散列键的一部分，具体来说是低位（LOB），被用来选择桶。”
+[[./pictures/go/2.png]]
+
+=“映射使用两个数据结构来存储数据。第一个数据结构是一个数组，内部存储的是用于选择桶的散列键的高八位值。这个数组用于区分每个键值对要存在哪个桶里。第二个数据结构是一个字节数组，用于存储键值对。”=
+
+=“映射是一个存储键值对的无序集合。”=
+
+=“映射的键可以是任何值。这个值的类型可以是内置的类型，也可以是结构类型，只要这个值可以使用==运算符做比较。切片、函数以及包含切片的结构类型这些类型由于具有引用语义，不能作为映射的键，使用这些类型会造成编译错误。”=
+
+使用映射
+  “从映射取值时有两个选择。第一个选择是，可以同时获得值，以及一个表示这个键是否存在的标志”
+  ~value, exists := colors["Blue"]~
+
+  “另一个选择是，只返回键对应的值，然后通过判断这个值是不是零值来确定键是否存在。”
+  #+begin_src go
+  // 获取键Blue对应的值
+  value := colors["Blue"]
+  
+  // 这个键存在吗？
+  if value != "" {
+  　　fmt.Println(value)
+  }
+  #+end_src
+
+  =“在Go语言里，通过键来索引映射时，即便这个键不存在也总会返回一个值。在这种情况下，返回的是该值对应的类型的零值。”=
+
+=“如果想把一个键值对从映射里删除，就使用内置的delete函数”=
+
+“但是切片不能用作映射的键。”
+
+“结构字面量可以对结构类型采用两种形式。
+#+begin_src go
+// 声明user类型的变量，并初始化所有字段
+lisa := user{
+  name: "Lisa",
+  email: "lisa@email.com",
+  ext: 123,
+  privileged: true,
+}
+
+// 声明user类型的变量
+lisa := user{"Lisa", "lisa@email.com", 123, true}
+#+end_src
+  第一种形式，这种形式在不同行声明每个字段的名字以及对应的值。字段名与值用冒号分隔，每一行以逗号结尾。这种形式对字段的声明顺序没有要求。
+  第二种形式没有字段名，只声明对应的值。这种形式下，值的顺序很重要，必须要和结构声明中字段的顺序一致。
+
+当声明结构类型时，字段的类型并不限制在内置类型，也可以使用其他用户定义的类型。
+
+#+begin_src go
+// admin需要一个user类型作为管理者，并附加权限
+type admin struct {
+  person user
+  level string
+}
+
+// 声明admin类型的变量
+fred := admin{
+  person: user{
+    name: "Lisa",
+    email: "lisa@email.com",
+    ext: 123,
+    privileged: true,
+  },
+  level: "super",
+}
+#+end_src
+
+另一种声明用户定义的类型的方法是，基于一个已有的类型，将其作为新类型的类型说明。
+标准库使用这种声明类型的方法，从内置类型创建出很多更加明确的类型，并赋予更高级的功能。
+~type Duration int64~
+
+=两种不同类型的值即便互相兼容，也不能互相赋值。编译器不会对不同类型的值做隐式转换。=
+
+~func (u user) notify() {~
+如果使用值接收者声明方法，调用时会使用这个值的一个副本来执行。
+
+#+begin_src go
+// 指向user类型值的指针也可以用来调用
+// 使用值接收者声明的方法
+lisa := &user{"Lisa", "lisa@email.com"}
+lisa.notify()
+#+end_src
+=为了支持这种方法调用，Go语言调整了指针的值，来符合方法接收者的定义。可以认为Go语言执行了代码清单5-18所示的操作。=
+~(*lisa).notify()~
+
+总结一下，值接收者使用值的副本来调用方法，而指针接受者使用实际值来调用方法。
+
+#+begin_src go
+// changeEmail使用指针接收者实现了一个方法
+func (u *user) changeEmail(email string) {
+  u.email = email
+}
+
+bill := user{"Bill", "bill@email.com"}
+
+// user类型的值可以用来调用
+// 使用指针接收者声明的方法
+bill.changeEmail("bill@newdomain.com")”
+#+end_src
+=Go语言再一次对值做了调整，使之符合函数的接收者，进行调用。=
+~(&bill).changeemail("bill@newdomain.com")~
+
+=“Go语言既允许使用值，也允许使用指针来调用方法，不必严格符合接收者的类型。这个支持非常方便开发者编写程序。”=
+
+=Go语言里的引用类型有如下几个：切片、映射、通道、接口和函数类型。=
+=当声明上述类型的变量时，创建的变量被称作标头（header）值。=
+  每个引用类型创建的标头值是包含一个指向底层数据结构的指针。
+  每个引用类型还包含一组独特的字段，用于管理底层数据结构。
+  因为标头值是为复制而设计的，所以永远不需要共享一个引用类型的值。
+  标头值里包含一个指针，因此通过复制来传递一个引用类型的值的副本，本质上就是在共享底层数据结构。
+
+#+begin_src go
+// File 表示一个打开的文件描述符
+type File struct {
+  *file
+}
+
+// file 是 *File 的实际表示
+// 额外的一层结构保证没有哪个os的客户端
+// 能够覆盖这些数据。如果覆盖这些数据，
+// 可能在变量终结时关闭错误的文件描述符
+type file struct {
+  fd int
+  name string 
+  dirinfo *dirInfo // 除了目录结构，此字段为nil
+  nepipe int32 // Write操作时遇到连续EPIPE的次数
+}
+#+end_src
+=“正是这层额外的内嵌类型阻止了复制。”=
+
+“是使用值接收者还是指针接收者，不应该由该方法是否修改了接收到的值来决定。这个决策应该基于该类型的本质。这条规则的一个例外是，需要让类型值符合某个接口的时候，即便类型的本质是非原始本质的，也可以选择使用值接收者声明方法。”
+
+=“如果用户定义的类型实现了某个接口类型声明的一组方法，那么这个用户定义的类型的值就可以赋给这个接口类型的值。这个赋值会把用户定义的类型的值存入接口类型的值。”=
+
+=接口值是一个两个字长度的数据结构，=
+  =第一个字包含一个指向内部表的指针。这个内部表叫作iTable，包含了所存储的值的类型信息。=
+    =iTable包含了已存储的值的类型信息以及与这个值相关联的一组方法。=
+  =第二个字是一个指向所存储值的指针。=
+  =将类型信息和指针组合在一起，就将这两个值组成了一种特殊的关系。=
+[[./pictures/go/3.png]]
+
+=“方法集定义了一组关联到给定类型的值或者指针的方法。定义方法时使用的接收者的类型决定了这个方法是关联到值，还是关联到指针，还是两个都关联。”=
+
+| Values | Methods Receivers |
+|--------+-------------------|
+| T      | (t T)             |
+| *T     | (t T) and (t *T)  |
+
+=T类型的值的方法集只包含值接收者声明的方法。而指向T类型的指针的方法集既包含值接收者声明的方法，也包含指针接收者声明的方法。=
+
+| Methods Receivers | Values   |
+|-------------------+----------|
+| (t T)             | T and *T |
+| (t *T)            | *T       |
+
+=如果使用指针接收者来实现一个接口，那么只有指向那个类型的指针才能够实现对应的接口。如果使用值接收者来实现一个接口，那么那个类型的值和指针都能够实现对应的接口。=
+
+总结！！！
+=普通方法调用，值和指针都可以调用。=
+=接口实现的话不同，值类型（T） 只能实现只包含值接收者方法的接口。*指针类型（T） 可以实现包含指针接收者方法的接口。=
+
+=嵌入类型=
+  嵌入类型是将已有的类型直接声明在新的结构类型里。被嵌入的类型被称为新的外部类型的内部类型。
+  通过嵌入类型，与内部类型相关的标识符会提升到外部类型上。
+  这些被提升的标识符就像直接声明在外部类型里的标识符一样，也是外部类型的一部分。
+  =外部类型也可以通过声明与内部类型标识符同名的标识符来覆盖内部标识符的字段或者方法。这就是扩展或者修改已有类型的方法。=
+
+#+begin_src go
+package main
+
+import "fmt"
+
+// notifier 是一个定义了通知类行为的接口
+type notifier interface {
+	notify()
+}
+
+type user struct {
+	name  string
+	email string
+}
+
+// notify实现了一个可以通过user类型值的指针
+// 调用的方法
+func (u *user) notify() {
+	fmt.Printf("Sending user email to %s<%s>\n",
+		u.name, u.email)
+}
+
+// admin代表一个拥有权限的管理员用户
+type admin struct {
+	user  // 嵌入类型
+	level string
+}
+
+// 应用程序入口
+func main() {
+	// 创建一个admin用户
+	ad := admin{
+		user: user{
+			name:  "john smith",
+			email: "john@yahoo.com",
+		},
+		level: "super",
+	}
+	// 我们可以直接访问内部类型的方法
+	ad.user.notify()
+
+	// 内部类型的方法也被提升到外部类型
+	ad.notify()
+
+	// 给admin用户发送一个通知用于实现接口的内部类型的方法，被提升到外部类型
+	sendNotification(&ad)
+}
+
+// sendNotification接受一个实现了notifier接口的值并发送通知
+func sendNotification(n notifier) {
+	n.notify()
+}
+#+end_src
+
+=注意声明字段和嵌入类型在语法上的不同。=
+
+=由于内部类型的提升，内部类型实现的接口会自动提升到外部类型。=
+=这意味着由于内部类型的实现，外部类型也同样实现了这个接口。=
+
+如果外部类型并不需要使用内部类型的实现，而想使用自己的一套实现，该怎么办？
+
+#+begin_src go
+package main
+
+import "fmt"
+
+// notifier 是一个定义了通知类行为的接口
+type notifier interface {
+	notify()
+}
+
+type user struct {
+	name  string
+	email string
+}
+
+// notify实现了一个可以通过user类型值的指针
+// 调用的方法
+func (u *user) notify() {
+	fmt.Printf("Sending user email to %s<%s>\n",
+		u.name, u.email)
+}
+
+// admin代表一个拥有权限的管理员用户
+type admin struct {
+	user  // 嵌入类型
+	level string
+}
+
+// notify实现了一个可以通过admin类型值调用的方法
+func (a *admin) notify() {
+	fmt.Printf("Sending admin email to %s<%s>\n",
+		a.name, a.email)
+}
+
+// 应用程序入口
+func main() {
+	// 创建一个admin用户
+	ad := admin{
+		user: user{
+			name:  "john smith",
+			email: "john@yahoo.com",
+		},
+		level: "super",
+	}
+	// 我们可以直接访问内部类型的方法
+	ad.user.notify()
+
+	// 内部类型的方法没有被提升
+	ad.notify()
+
+	// 给admin用户发送一个通知
+	// 接口的嵌入的内部类型实现并没有提升到
+	// 外部类型
+	sendNotification(&ad)
+}
+
+// sendNotification接受一个实现了notifier接口的值并发送通知
+func sendNotification(n notifier) {
+	n.notify()
+}
+#+end_src
+
+=这表明，如果外部类型实现了notify方法，内部类型的实现就不会被提升。=
+=不过内部类型的值一直存在，因此还可以通过直接访问内部类型的值，来调用没有被提升的内部类型实现的方法。=
+
+=公开或未公开的标识符=
+[[*Exported names]]
+
+=当要写的代码属于某个包时，好的实践是使用与代码所在文件夹一样的名字作为包名。=
+=所有的Go工具都会利用这个习惯，所以最好遵守这个好的实践。=
+
+=当一个标识符的名字以小写字母开头时，这个标识符就是未公开的，即包外的代码不可见。=
+=如果一个标识符以大写字母开头，这个标识符就是公开的，即被包外的代码可见。=
+
+工厂函数
+~go mod init example.com/test~
+counters/counters.go
+#+begin_src go
+// counters包提供告警计数器的功能
+package counters
+
+// alertCounter是一个未公开的类型
+// 这个类型用于保存告警计数
+type alertCounter int
+
+// New创建并返回一个未公开的 alertCounter 类型的值
+func New(value int) alertCounter {
+	return alertCounter(value)
+}
+#+end_src
+
+main.go
+#+begin_src go
+package main
+
+import (
+	"fmt"
+
+	"example.com/test/counters"
+)
+
+// mian是应用程序入口
+func main() {
+	// 使用counters包公开的New函数来创建一个未公开的变量
+	counter := counters.New(10)
+	fmt.Printf("Counter : %d\n", counter)
+}
+#+end_src
+
+将工厂函数命名为New是Go语言的一个习惯。
+=这个New函数做了些有意思的事情：它创建了一个未公开的类型的值，并将这个值返回给调用者。=
+
+要让这个行为可行，需要两个理由。
+=第一，公开或者未公开的标识符，不是一个值。=
+=第二，短变量声明操作符，有能力捕获引用的类型，并创建一个未公开的类型的变量。永远不能显式创建一个未公开的类型的变量，不过短变量声明操作符可以这么做。=
+
+entities/entities.go
+#+begin_src go
+package entities
+
+type User struct {
+  Name string  //公开
+  email string //非公开
+}
+#+end_src
+
+entities/entities.go
+#+begin_src go
+package entities
+
+type user struct {
+  Name string  //公开
+  Email string //公开
+}
+
+type Admin struct {
+  user // 嵌入的类型是未公开的
+  Right int
+}
+#+end_src
+
+main.go
+#+begin_src go
+package main
+
+import (
+	"fmt"
+
+	"example.com/test/entities"
+)
+
+// mian是应用程序入口
+func main() {
+	a := entities.Admin{
+		Right: 10,
+	}
+
+	// 设置未公开的内部类型的公开字段的值
+	a.Name = "Bill"
+	a.Email = "bill@email.com"
+
+	fmt.Printf("User : %v\n", a)
+}
+#+end_src
+
+由于内部类型user是未公开的，这段代码无法直接通过结构字面量的方式初始化该内部类型。
+=不过，即便内部类型是未公开的，内部类型里声明的字段依旧是公开的。=
+=既然内部类型的标识符提升到了外部类型，这些公开的字段也可以通过外部类型的字段的值来访问。=
+
+=Go语言的并发同步模型来自一个叫作通信顺序进程（Communicating Sequential Processes，CSP）的范型（paradigm）。=
+=CSP是一种消息传递模型，通过在goroutine之间传递数据来传递消息，而不是对数据进行加锁来实现同步访问。=
+=用于在goroutine之间同步和传递数据的关键数据类型叫作通道（channel）。=
+
+=进程看作一个包含了应用程序在运行中需要用到和维护的各种资源的容器。=
+
+[[./pictures/go/4.png]]
+
+一个线程是一个执行空间，这个空间会被操作系统调度来运行函数中所写的代码。每个进程至少包含一个线程，每个进程的初始线程被称作主线程。
+=Go 语言的运行时会在逻辑处理器上调度goroutine来运行。=
+=每个逻辑处理器都分别绑定到单个操作系统线程。=
+=在1.5版本上，Go语言的运行时默认会为每个可用的物理处理器分配一个逻辑处理器。=
+=在1.5版本之前的版本中，默认给整个应用程序只分配一个逻辑处理器。=
+
+[[./pictures/go/5.png]]
+
+如果创建一个goroutine并准备运行，这个goroutine就会被放到 =调度器的全局运行队列中。=
+之后， =调度器就将这些队列中的goroutine分配给一个逻辑处理器，并放到这个逻辑处理器对应的本地运行队列中。=
+=本地运行队列中的goroutine会一直等待直到自己被分配的逻辑处理器执行。=
+有时，正在运行的goroutine需要执行一个阻塞的系统调用，
+  如打开一个文件。
+    =当这类调用发生时，线程和goroutine会从逻辑处理器上分离，该线程会继续阻塞，等待系统调用的返回=
+    与此同时，这个逻辑处理器就失去了用来运行的线程。
+    =所以，调度器会创建一个新线程，并将其绑定到该逻辑处理器上。=
+    =之后，调度器会从本地运行队列里选择另一个goroutine来运行。=
+
+  如果一个goroutine需要做一个网络I/O调用，流程上会有些不一样。
+    在这种情况下，goroutine会和逻辑处理器分离，并移到 =集成了网络轮询器的运行时。=
+    一旦该轮询器指示某个网络读或者写操作已经就绪，对应的goroutine就会重新分配到逻辑处理器上来完成操作。
+    调度器对可以创建的逻辑处理器的数量没有限制， =但语言运行时默认限制每个程序最多创建10 000个线程。=
+    =这个限制值可以通过调用runtime/debug包的SetMaxThreads方法来更改。=
+
+=当有多个逻辑处理器时，调度器会将goroutine平等分配到每个逻辑处理器上。这会让goroutine在不同的线程上运行。=
+=要想真的实现并行的效果，用户需要让自己的程序运行在有多个物理处理器的机器上。=
+
+[[./pictures/go/6.png]]
+
+#+begin_src go
+// 这个示例程序展示如何创建 goroutine 以及调度器的行为
+package main
+
+import (
+	"fmt"
+	"runtime"
+	"sync"
+)
+
+// main是所有Go程序的入口
+func main() {
+	// 分配一个逻辑处理器给调度器使用
+	runtime.GOMAXPROCS(1)
+
+	// wg用来等待程序完成
+	// 计数加2，表示要等待两个goroutine
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	fmt.Println("Start Goroutines")
+	// 声明一个匿名函数，并创建一个goroutine
+	go func() {
+		// 在函数退出时调用Done来通知main函数工作已经完成
+		defer wg.Done()
+		// 显示字母表3次
+		for count := 0; count < 3; count++ {
+			for char := 'a'; char < 'a'+26; char++ {
+				fmt.Printf("%c ", char)
+			}
+		}
+	}()
+
+	// 声明一个匿名函数，并创建一个goroutine
+	go func() {
+		// 在函数退出时调用Done来通知main函数工作已经完成
+		defer wg.Done()
+		// 显示字母表3次
+		for count := 0; count < 3; count++ {
+			for char := 'A'; char < 'A'+26; char++ {
+				fmt.Printf("%c ", char)
+			}
+		}
+	}()
+
+	// 等待goroutine结束
+	fmt.Println("Waiting To Finish")
+	wg.Wait()
+	fmt.Println("\nTerminating Program")
+}
+#+end_src
+
+runtime包的GOMAXPROCS函数
+  允许程序更改调度器可以使用的逻辑处理器的数量。
+  =也可以通过修改和这个函数名字一样的环境变量的值来更改逻辑处理器的数量。=
+
+WaitGroup是一个计数信号量，可以用来记录并维护运行的goroutine。
+如果WaitGroup的值大于0，Wait方法就会阻塞。
+~defer wg.Done()~
+defer 函数返回时调用
+
+=基于调度器的内部算法，一个正运行的goroutine在工作结束前，可以被停止并重新调度。=
+=调度器这样做的目的是防止某个goroutine长时间占用逻辑处理器。=
+=当goroutine占用时间过长时，调度器会停止当前正运行的goroutine，并给其他可运行的goroutine运行的机会。=
+
+[[./pictures/go/7.png]]
+
+=go 也有c语言中的 goto label=
+~continue label~ 也可以
+
+~runtime.GOMaxprocs(runtime.NumCPU())~
+函数NumCPU返回可以使用的物理处理器的数量。
+
+
+

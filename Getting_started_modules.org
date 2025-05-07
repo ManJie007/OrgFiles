@@ -1,0 +1,106 @@
+#+title: Getting_started_modules
+#+author: JIE MAN
+* Environment setup
+** Installing software
+*** Local web servers
+
+Visual Studio Code [[https://marketplace.visualstudio.com/items?itemName=ms-vscode.live-server][Live Preview]] extension
+** Browsing the web
+
+Search tips
+  ant fish cheese
+  "ant fish cheese"
+  "ant cheese" -fish
+  ant OR cheese
+  intitle:cheese
+** Code editors
+
+Basic code editor functionality
+  Opening and editing files
+  Syntax highlighting
+  Code completion/suggestion
+  Debugging help
+  Search and replace
+
+Enhancing your code editor with extensions
+  Visual Studio Code =Prettier= extension
+** Dealing with files
+
+What structure should a website have?
+  web-projects
+    index.html
+    images/
+    styles/
+    scripts/
+
+File paths
+  in the same folder : my-image.jpg
+  in a sub-folder : subfolder/my-image.jpg
+  in the folder above : ../my-image.jpg 上一级目录 为什么？ls -a 中 .. 表示上一级目录
+  can combine
+** Command line crash course
+
+Windows
+  cmd -- old-style Windows DOS
+  PowerShell and Gitbash
+  WSL
+
+Basic built-in terminal commands
+  cd
+  ls -l
+  man
+  mkdir
+  rmdir
+  touch
+  cp
+  mv
+  rm -rf 
+  curl
+  grep
+  less, cat
+  awk, tr, sed
+
+  tab key to autocomplete
+
+  [[https://tldr.sh/][tldr.sh]]
+
+Connecting commands together with pipes
+  |
+  ~curl https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch -L -I | grep location | awk '{ print "https://developer.mozilla.org" $2 }'~
+
+Adding powerups
+  [[https://www.npmjs.com/][npm]] a privately owned, package hosting service that works closely together with Node.js.
+
+  [[https://nodejs.org/en/][Installing Node.js]] also installs the =npm= command line tool (and a supplementary npm-centric tool called =npx=)
+
+  [[https://prettier.io/][Prettier]]
+
+  Where to install our CLI tools?
+    =globally=
+    =locally to the current project directory=
+
+  ~npm install --save-dev prettier~
+  ~npx prettier~
+  #+begin_src shell
+    ➜  ~ npx prettier
+    Usage: prettier [options] [file/dir/glob ...]
+
+    By default, output is written to stdout.
+    Stdin is read if it is piped to Prettier and no files are given.
+
+    ...
+  #+end_src
+
+  ~npx prettier --check index.js~
+  ~npx prettier --write index.js~
+
+  Depending on your workflow (or the workflow that you pick) you can make this an automated part of your process.
+
+Other tools to play with
+  https://github.com/sharkdp/bat
+  https://denilson.sa.nom.br/prettyping/
+  https://htop.dev/
+  https://tldr.sh/#installation
+
+  
+  

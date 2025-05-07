@@ -1,0 +1,376 @@
+#+title: kubernetes_in_action
+#+author: JIE MAN
+* “Chapter 1. Introducing Kubernetes”
+** Moving from monolithic apps to microservices
+
+[[./pictures/kubernetes/1.png]]
+
+Microservices communicate through synchronous protocols such as HTTP, over which they usually expose RESTful (REpresentational State Transfer) APIs, or through asynchronous protocols such as AMQP (Advanced Message Queueing Protocol).
+
+Scaling microservices
+只需要扩展那些真正需要更多资源的服务，而其他服务可以保持原有的规模不变。
+
+[[./pictures/kubernetes/2.png]]
+
+Microservices also bring other problems, such as making it hard to debug and trace execution calls, because they span multiple processes and machines. 
+Luckily, these problems are now being addressed with distributed tracing systems such as =Zipkin=.
+** Kubernetes uses Linux container technologies to provide isolation of running applications
+
+[[./pictures/kubernetes/3.png]]
+Using VMs to isolate groups of applications vs. isolating individual apps with containers
+[[./pictures/kubernetes/4.png]]
+The difference between how apps in VMs use the CPU vs. how they use them in containers
+
+=Introducing the mechanisms that make container isolation possible=
+=1.Linux Namespaces=
+  makes sure each process sees its own personal view of the system (files, processes, network interfaces, hostname, and so on).
+
+  The following kinds of namespaces exist:
+    Mount (mnt)
+    Process ID (pid)
+    Network (net)
+    Inter-process communication (ipc)
+    UTS
+    User Id(user)
+      
+=2.Linux Control Groups (cgroups)=
+  limit the amount of resources the process can consume (CPU, memory, network bandwidth, and so on).
+** Introducing the Docker container platform
+
+=A big difference between Docker-based container images and VM images is that container images are composed of layers, which can be shared and reused across multiple images.=
+
+Docker is a platform for packaging, distributing, and running applications.
+
+main concepts:Images(contains the file system and other metadata), Registries, Containers
+[[./pictures/kubernetes/5.png]]
+
+[[./pictures/kubernetes/6.png]]
+Running six apps on three VMs vs. running them in Docker containers
+=Understanding image layers=
+  Docker images are composed of layers. 
+  Different images can contain the exact same layers because every Docker image is built on top of another image and two different images can both use the same parent image as their base.
+  Two containers created from two images based on the same base layers can therefore read the same files,
+  =but if one of them writes over those files, the other one doesn’t see those changes.=
+  =This works because container image layers are read-only.=
+
+  When a container is run,
+    =a new writable layer is created on top of the layers in the image.=
+  When the process in the container writes to a file located in one of the underlying layers,
+    =a copy of the whole file is created in the top-most layer and the process writes to the copy.=
+
+=You can’t containerize an application built for the x86 architecture and expect it to run on an ARM-based machine because it also runs Docker.=
+** Introducing rkt—an alternative to Docker
+rkt is a platform for running containers.
+
+It uses the OCI container image format
+and can even run regular Docker container images.
+** Introducing Kubernetes
+[[./pictures/kubernetes/7.png]]
+The system is composed of a master node and any number of worker nodes.
+When the developer submits a list of apps to the master, Kubernetes deploys them to the cluster of worker nodes. 
+This includes things such as service discovery, scaling, load-balancing, self-healing, and even leader election.
+
+[[./pictures/kubernetes/8.png]]
+The components that make up a Kubernetes cluster
+  The Control Plane
+    The Kubernetes API Server, which you and the other Control Plane components communicate with
+    The Scheduler, which schedules your apps (assigns a worker node to each deployable component of your application)
+    The Controller Manager, which performs cluster-level functions, such as replicating components, keeping track of worker nodes, handling node failures, and so on
+    etcd, a reliable distributed data store that persistently stores the cluster configuration.
+  The nodes
+    Docker, rkt, or another container runtime, which runs your containers
+    The Kubelet, which talks to the API server and manages containers on its node
+    The Kubernetes Service Proxy (kube-proxy), which load-balances network traffic between application components
+** Running an application in Kubernetes
+1.package it up into one or more container images, push those images to an image registry
+2.post a description of your app to the Kubernetes API server
+  The description includes information:
+    1.the container image or images that contain your application components
+    2.how those components are related to each other
+    3.which ones need to be run co-located (together on the same node) and which don’t.
+    4.For each component, you can also specify how many copies (or replicas) you want to run.
+    5.which of those components provide a service to either internal or external clients
+    6.should be exposed through a single IP address and made discoverable to the other components
+3.When the API server processes your app’s description, the Scheduler schedules the specified groups of containers onto the available worker nodes based on computational resources required by each group and the unallocated resources on each node at that moment.
+4.The Kubelet on those nodes then instructs the Container Runtime (Docker, for example) to pull the required container images and run the containers.
+5.Once the application is running, Kubernetes continuously makes sure that the deployed state of the application always matches the description you provided.
+
+[[./pictures/kubernetes/9.png]]
+
+=Scaling the number of copies=
+  While the application is running, you can decide you want to increase or decrease the number of copies, and Kubernetes will spin up additional ones or stop the excess ones, respectively.
+
+=Hitting a moving target=
+  If the container is providing a service to external clients or other containers running in the cluster, how can they use the container properly if it’s constantly moving around the cluster?
+  And how can clients connect to containers providing a service when those containers are replicated and spread across the whole cluster?
+
+  =To allow clients to easily find containers that provide a specific service, you can tell Kubernetes which containers provide the same service and Kubernetes will expose all of them at a single static IP address and expose that address to all applications running in the cluster.=
+  =This is done through environment variables, but clients can also look up the service IP through good old DNS.=
+  =The kube-proxy will make sure connections to the service are load balanced across all the containers that provide the service.=
+  =The IP address of the service stays constant, so clients can always connect to its containers, even when they’re moved around the cluster.=
+
+developers don’t need to implement features that they would usually implement.
+This includes discovery of services and/or peers in a clustered application.
+Kubernetes does this instead of the app.
+Usually, the app only needs to =look up certain environment variables or perform a DNS lookup.=
+If that’s not enough, the application can =query the Kubernetes API server directly= to get that and/or other information.
+* “Chapter 2. First steps with Docker and Kubernetes”
+** Creating, running, and sharing a container image with Docker
+If you’re using a Mac or Windows and install Docker per instructions,
+Docker will set up a VM for you and run the Docker daemon inside that VM.
+The Docker client executable will be available on your host OS, and will communicate with the daemon inside the VM.
+
+http://docs.docker.com/engine/installation/
+
+busybox image
+~docker pull busybox:tag~
+~docker run busybox echo "Hello world"~
+
+[[./pictures/kubernetes/10.png]]
+
+Docker Hub registry
+http://docker.io/
+http://hub.docker.com
+
+~docker run <image>:<tag>~
+
+Creating a trivial Node.js app
+=you’ll see that an app running inside a container sees its own hostname and not that of the host machine,=
+even though it’s running on the host like any other process.
+This will be useful later,
+=when you deploy the app on Kubernetes and scale it out (scale it horizontally; that is, run multiple instances of the app).=
+
+app.js
+#+begin_src js
+const http = require('http');
+const os = require('os');
+
+console.log("Kubia server starting...");
+
+var handler = function(request, response) {
+  console.log("Received request from " + request.connection.remoteAddress);
+  response.writeHead(200);
+  response.end("You've hit " + os.hostname() + "\n");
+};
+
+var www = http.createServer(handler);
+www.listen(8080);
+#+end_src
+*** Creating a Dockerfile for the image
+
+Dockerfile
+#+begin_src Dockerfile
+FROM node:7
+ADD app.js /app.js
+ENTRYPOINT ["node", "app.js"]
+#+end_src
+
+The Dockerfile needs to be in the same directory as the app.js file
+*** Building the container image
+
+~docker build -t kubia .~
+
+自己之前使用的时候 用过 --platform
+
+[[./pictures/kubernetes/11.png]]
+*** Understanding how an image is built
+The contents of the whole directory are uploaded to the Docker daemon and the image is built there.
+
+=Understanding image layers=
+An image isn’t a single, big, binary blob, =but is composed of multiple layers=
+=Different images may share several layers, which makes storing and transferring images much more efficient.=
+=When building an image, a new layer is created for each individual command in the Dockerfile.=
+
+[[./pictures/kubernetes/12.png]]
+
+~docker images~
+*** Running the container image
+~docker run --name kubia-container -p 8080:8080 -d kubia~
+
+-d detached from the console
+-p port mapped
+自己之前使用的时候 用过 --platform
+
+Docker 的 client 和 Dameon 可以不在一个主机
+随意使用时需要指明Dameon所在的主机
+可以在命令行中指明 或 DOCKER_HOST 环境变量
+
+~curl localhost:8080~
+*** Listing all running containers
+
+~docker ps~
+~docker ps -a~
+
+Getting additional information about a container
+~docker inspect kubia-container~
+
+~docker exec -it kubia-container bash~
+-i, which makes sure STDIN is kept open. You need this for entering commands into the shell.
+-t, which allocates a pseudo terminal (TTY).
+=exit= 退出
+
+=The container’s filesystem is also isolated=
+*** Stopping and removing a container
+~docker stop kubia-container~
+
+~docker start kubia-container~
+~docker start -ai kubia-container~
+-a	（attach）附加到容器的输出，你可以实时看到标准输出 / 错误
+-i	（interactive）保持输入流打开，可进行交互输入（如 shell）
+
+~docker ps -a~
+
+~docker rm kubia-container~
+*** Pushing the image to an image registry
+http://hub.docker.com
+
+Other widely used such registries are Quay.io and the Google Container Registry.
+
+=Docker Hub will allow you to push an image if the image’s repository name starts with your Docker Hub ID.=
+Tagging an image under an additional tag
+  ~docker tag kubia luksa/kubia~
+  ~docker images~
+
+~docker login~
+~docke push luksa/kubia~
+*** Setting up a Kubernetes cluster
+http://kubernetes.io
+Kubernetes can be run on your local development machine, your own organization’s cluster of machines, on cloud providers providing virtual machines (Google Compute Engine, Amazon EC2, Microsoft Azure, and so on), or by using a managed Kubernetes cluster such as Google Kubernetes Engine (previously known as Google Container Engine).
+=kubeadm tool=
+=kops tool=
+  install Kubernetes on Amazon’s AWS (Amazon Web Services)
+  http://github.com/kubernetes/kops
+  is built on top of kubeadm
+
+=Minikube=  
+  The simplest and quickest path to a fully functioning Kubernetes cluster is by using Minikube.
+  http://github.com/kubernetes/minikube
+~brew install minikube~
+or
+~curl -LO https://github.com/kubernetes/minikube/releases/latest/download/minikube-darwin-arm64~
+~sudo install minikube-darwin-arm64 /usr/local/bin/minikube~
+*** Starting a Kubernetes cluster with Minikube
+~minikube start~
+*** Installing the Kubernetes client (kubectl)
+~brew install kubectl~
+or
+~curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/arm64/kubectl"~
+~curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/arm64/kubectl.sha256"~
+~echo "$(cat kubectl.sha256)  kubectl" | shasum -a 256 --check~
+~chmod +x ./kubectl~
+~sudo mv ./kubectl /usr/local/bin/kubectl~
+~sudo chown root: /usr/local/bin/kubectl~
+
+~kubectl version --client~
+*** Checking to see the cluster is up and kubectl can talk to it
+~kubectl cluster-info~
+
+~minikube ssh~ to log into the Minikube VM and explore it from the inside.
+*** Using a hosted Kubernetes cluster with Google Kubernetes Engine
+use a managed Google Kubernetes Engine (GKE) cluster.
+
+https://cloud.google.com/container-engine/docs/before-you-begin
+
+1.Signing up for a Google account, in the unlikely case you don’t have one already.
+2.Creating a project in the Google Cloud Platform Console.
+3.Enabling billing. This does require your credit card info, but Google provides a 12-month free trial. And they’re nice enough to not start charging automatically after the free trial is over.)
+4.Enabling the Kubernetes Engine API.
+5.Downloading and installing Google Cloud SDK. (This includes the gcloud command-line tool, which you’ll need to create a Kubernetes cluster.)
+6.Installing the kubectl command-line tool with gcloud components install kubectl.
+
+Creating a Kubernetes cluster with three nodes
+~gcloud container clusters create kubia --num-nodes 3 --machine-type f1-micro~
+[[./pictures/kubernetes/13.png]]
+*** Checking if the cluster is up by listing cluster nodes
+~kubeclt get nodes~
+
+Google Kubernetes Engine (GKE) cluster
+~gcloud compute ssh <node-name>~
+*** Retrieving additional details of an object
+~kubectl describe node <node-name>~
+*** Setting up an alias and command-line completion for kubectl
+~/.bashrc or ~/.zshrc
+#+begin_src shell
+alias k=kubectl
+#+end_src
+
+tab completion in bash
+install a package called /bash-completion/
+~source <(kubectl completion bash)~
+~source <(kubectl completion bash | sed s/kubectl/k/g)~
+*** Running your first app on Kubernetes
+=Usually, you’d prepare a JSON or YAML manifest, containing a description of all the components you want to deploy=
+
+这里先使用简单的命令
+
+~kubectl run kubia --image=luksa/kubia --port=8080 --generator=run/v1~
+--generator
+  Usually, you won’t use it
+  =using it here so Kubernetes creates a ReplicationController instead of a Deployment.=
+  a ReplicationController called kubia has been created.
+  后面介绍
+*** Pods!!!
+=A pod is a group of one or more tightly related containers that will always run together on the same worker node and in the same Linux namespace(s).=
+each pod has its own IP
+[[./pictures/kubernetes/14.png]]
+
+~kubectl get pods~
+~kubectl describe pod~
+
+[[./pictures/kubernetes/15.png]]
+*** Accessing
+=With your pod running, how do you access it?=
+  =each pod gets its own IP address, but this address is internal to the cluster and isn’t accessible from outside of it.=
+  =To make the pod accessible from the outside, you’ll expose it through a Service object.=
+  You’ll create a special service of type =LoadBalancer=
+    because if you create a =regular service (a ClusterIP service)=, like the pod, it would also only be accessible from inside the cluster.
+
+~kubectl expose rc kubia --type=LoadBalancer --name kubia-http~
+  the abbreviation rc instead of replicationcontroller
+  =po for pods, svc for services, and so on=
+
+=Services are objects like Pods and Nodes,=
+  so you can see the newly created Service object by running the kubectl get services command
+  ~kubectl get services~
+  ~kubectl get svc~
+  可以看到可以访问服务的外部IP
+
+Minikube doesn’t support LoadBalancer services, so the service will never get an external IP.
+But you can access the service anyway through its external port.
+When using Minikube, you can get the IP and port through which you can access the service by running
+~minikube service kubia-http~
+*** Understanding how the ReplicationController, the Pod, and the Ser- rvice fit together
+[[./pictures/kubernetes/16.png]]
+
+Generally, ReplicationControllers are used to replicate pods (that is, create multiple copies of a pod) and keep them running.
+
+=A pod may disappear at any time=
+  because the node it’s running on has failed, because someone deleted the pod, or because the pod was evicted from an otherwise healthy node.
+  When any of those occurs, a missing pod is replaced with a new one by the Replication-Controller, as described previously.
+  This new pod gets a different IP address from the pod it’s replacing.
+  =This is where services come in—to solve the problem of ever-changing pod IP addresses, as well as exposing multiple pods at a single constant IP and port pair.=
+
+=When a service is created, it gets a static IP, which never changes during the lifetime of the service.=
+=Services represent a static location for a group of one or more pods that all provide the same service.=
+=Requests coming to the IP and port of the service will be forwarded to the IP and port of one of the pods belonging to the service at that moment.=
+*** Horizontally scaling the application
+~kubectl get replicationcontrollers~
+~kubectl scale rc kubia --replicas=3~
+~kubectl get replicationcontrollers~
+~kubectl get pods~
+
+[[./pictures/kubernetes/17.png]]
+
+~kubectl get pods -o wide~
+~kubectl describe pod <pod-name>~
+*** Introducing the Kubernetes dashboard
+[[./pictures/kubernetes/18.png]]
+
+~kubectl cluster-info | grep dashboard~
+
+If you’re using Google Kubernetes Engine
+  ~gcloud container clusters describe kubia | grep -E "(username|password):"~
+
+~minikube dashboard~  
+* “Chapter 3. Pods: running containers in Kubernetes”
+
