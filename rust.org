@@ -6709,6 +6709,331 @@ fn main() {
 =The Fn traits are important when defining or using functions or types that make use of closures.=
 
 * Chapter 14 Cargo in more depth and talk about best practices for sharing your libraries with others
+** Publishing a Crate to Crates.io
+[[https://crates.io/][crates.io]]
+*** Making Useful Documentation Comments
+=documentation comment, that will generate HTML documentation.=
+
+=Documentation comments use three slashes, ///, instead of two =
+=and support Markdown notation for formatting the text.=
+
+#+begin_src rust
+/// Adds one to the number given.
+///
+/// # Examples
+///
+/// ```
+/// let arg = 5;
+/// let answer = my_crate::add_one(arg);
+///
+/// assert_eq!(6, answer);
+/// ```
+pub fn add_one(x: i32) -> i32 {
+    x + 1
+}
+#+end_src
+
+~cargo doc~ generate the HTML documentation from this documentation comment
+  runs the ~rustdoc~ and =puts the generated HTML documentation in the target/doc directory.=
+
+~cargp doc --open~
+  build the HTML for your current crate’s documentation
+  and open the result in a web browser.
+*** Commonly Used Sections
+Here are some other sections that crate authors commonly use in their documentation:
+=Panics=
+=Errors=
+=Safety=
+*** Documentation Comments as Tests
+Adding example code blocks in your documentation comments can help demonstrate how to use your library
+=and doing so has an additional bonus=
+
+~cargo test~
+  =will run the code examples in your documentation as tests!=
+*** Commenting Contained Items
+The style of doc comment //! adds documentation to the item that contains the comments rather than to the items following the comments.
+=//! 是模块级或 crate 级别的文档注释，用于描述当前模块整体的用途，通常写在 src/lib.rs 文件顶部。=
+
+#+begin_src rust
+//! # My Crate
+//!
+//! `my_crate` is a collection of utilities to make performing certain
+//! calculations more convenient.
+
+/// Adds one to the number given.
+// --snip--
+#+end_src
+*** Exporting a Convenient Public API with pub use
+[[*Chapter 7 Rust’s module system and about privacy rules for organizing your code and its public Application Programming Interface (API).]]
+
+=you can re-export items to make a public structure that’s different from your private structure by using pub use.=
+[[*Re-exporting Names with pub use]]
+Re-exporting takes a public item in one location and makes it public in another location, as if it were defined in the other location instead.
+
+#+begin_src rust
+//! # Art
+//!
+//! A library for modeling artistic concepts.
+
+pub mod kinds {
+    /// The primary colors according to the RYB color model.
+    pub enum PrimaryColor {
+        Red,
+        Yellow,
+        Blue,
+    }
+
+    /// The secondary colors according to the RYB color model.
+    pub enum SecondaryColor {
+        Orange,
+        Green,
+        Purple,
+    }
+}
+
+pub mod utils {
+    use crate::kinds::*;
+
+    /// Combines two primary colors in equal amounts to create
+    /// a secondary color.
+    pub fn mix(c1: PrimaryColor, c2: PrimaryColor) -> SecondaryColor {
+        // --snip--
+    }
+}
+#+end_src
+
+Another crate that depends on this library would need use statements that bring the items from art into scope, specifying the module structure that’s currently defined.
+
+#+begin_src rust
+use art::kinds::PrimaryColor;
+use art::utils::mix;
+
+fn main() {
+    let red = PrimaryColor::Red;
+    let yellow = PrimaryColor::Yellow;
+    mix(red, yellow);
+}
+#+end_src
+
+to
+
+#+begin_src rust
+//! # Art
+//!
+//! A library for modeling artistic concepts.
+
+pub use self::kinds::PrimaryColor;
+pub use self::kinds::SecondaryColor;
+pub use self::utils::mix;
+
+pub mod kinds {
+    // --snip--
+}
+
+pub mod utils {
+    // --snip--
+}
+#+end_src
+
+#+begin_src rust
+use art::mix;
+use art::PrimaryColor;
+
+fn main() {
+    // --snip--
+}
+#+end_src
+
+~cargo doc --open~
+
+=In cases where there are many nested modules, re-exporting the types at the top level with pub use can make a significant difference in the experience of people who use the crate.=
+=Another common use of pub use is to re-export definitions of a dependency in the current crate to make that crate’s definitions part of your crate’s public API.=
+*** Setting Up a Crates.io Account
+Before you can publish any crates, you need to create an account on [[https://crates.io/][crates.io]] and get an API token.
+
+~cargo login~
+=and paste your API key when prompted=
+
+=This command will inform Cargo of your API token and store it locally in ~/.cargo/credentials.=
+*** Adding Metadata to a New Crate
+Cargo.toml
+need to add some metadata in the [package] section
+
+need a unique name
+  =Once a crate name is taken, no one else can publish a crate with that name.=
+
+=a description and license are required so people will know what your crate does and under what terms they can use it.=
+http://spdx.org/licenses/
+
+#+begin_src toml
+[package]
+name = "guessing_game"
+license = "MIT"
+#+end_src
+
+=If you want to use a license that doesn’t appear in the SPDX, you need to place the text of that license in a file, include the file in your project, and then use license-file to specify the name of that file instead of using the license key.=
+
+#+begin_src toml
+[package]
+name = "guessing_game"
+version = "0.1.0"
+edition = "2021"
+description = "A fun game where you guess what number the computer has chosen."
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+#+end_src
+=you can also specify multiple license identifiers separated by OR to have multiple licenses for your project.=
+
+https://doc.rust-lang.org/cargo/
+*** Publishing to Crates.io
+=a publish is permanent.=
+
+~cargo publish~
+*** Publishing a New Version of an Existing Crate
+=change the version value specified in your Cargo.toml file and republish.=
+~cargo publish~
+
+[[http://semver.org/][Semantic Versioning rules]]
+(sometimes called SemVer)
+| MAJOR | 主版本号：做了不兼容的 API 修改（破坏性变更） |
+| MINOR | 次版本号：增加了新功能，但向下兼容            |
+| PATCH | 补丁号：修复了 bug，完全兼容                  |
+*** Deprecating Versions from Crates.io with cargo yank
+=Yanking a version prevents new projects from depending on that version while allowing all existing projects that depend on it to continue.=
+=Essentially, a yank means that all projects with a Cargo.lock will not break, and any future Cargo.lock files generated will not use the yanked version.=
+
+~cargo yank --vers 1.0.1~
+
+By adding --undo to the command, you can also undo a yank and allow projects to start depending on a version again:
+
+~cargo yank --vers 1.0.1 --undo~
+** Cargo Workspaces
+=A workspace is a set of packages that share the same Cargo.lock and output directory.=
+
+~mkdir add~
+~cd add~
+~touch Cargo.toml~
+
+Cargo.toml
+#+begin_src toml
+[workspace]
+resolver = "2"
+#+end_src
+
+This file won’t have a [package] section.
+Instead, it will start with a [workspace] section that will allow us to add members to the workspace.
+
+~cargo new adder~
+  automatically adds the newly created package to the members key in the [workspace] definition in the workspace Cargo.toml
+  
+Cargo.toml
+#+begin_src toml
+[workspace]
+resolver = "2"
+members = ["adder"]
+#+end_src
+
+The workspace has =one target directory= at the top level that the compiled artifacts will be placed into;
+the adder package doesn’t have its own target directory.
+=By sharing one target directory, the crates can avoid unnecessary rebuilding.=
+*** Creating the Second Package in the Workspace
+~cargo new add_one --lib~
+
+Cargo.toml
+#+begin_src toml
+[workspace]
+resolver = "2"
+members = ["adder", "add_one"]
+#+end_src
+
+➜  add tree
+.
+├── add_one
+│   ├── Cargo.toml
+│   └── src
+│       └── lib.rs
+├── adder
+│   ├── Cargo.toml
+│   └── src
+│       └── main.rs
+├── Cargo.lock
+├── Cargo.toml
+└── target
+
+add_one/src/lib.rs
+#+begin_src rust
+pub fn add_one(x: i32) -> i32 {
+    x + 1
+}
+#+end_src
+
+adder/Cargo.toml
+#+begin_src toml
+[dependencies]
+add_one = { path = "../add_one" }
+#+end_src
+
+=explicit about the dependency relationships.=
+
+adder/src/main.rs
+#+begin_src rust
+fn main() {
+    let num = 10;
+    println!("Hello, world! {num} plus one is {}!", add_one::add_one(num));
+}
+#+end_src
+
+~cargo build~
+~cargo run -p adder~
+*** Depending on an External Package in a Workspace
+=Notice that the workspace has only one Cargo.lock file at the top level, rather than having a Cargo.lock in each crate’s directory.=
+=This ensures that all crates are using the same version of all dependencies.=
+=If we add the rand package to the adder/Cargo.toml and add_one/Cargo.toml files,=
+=Cargo will resolve both of those to one version of rand and record that in the one Cargo.lock.=
+
+add_one/Cargo.toml
+#+begin_src toml
+[dependencies]
+rand = "0.8.5"
+#+end_src
+
+~use rand;~
+
+~cargo build~
+=Cargo will ensure that every crate in every package in the workspace using the rand package will be using the same version as long as they specify compatible versions of rand, saving us space and ensuring that the crates in the workspace will be compatible with each other.=
+*** Adding a Test to a Workspace
+
+add_one/src/lib.rs
+#+begin_src rust
+pub fn add_one(x: i32) -> i32 {
+    x + 1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        assert_eq!(3, add_one(2));
+    }
+}
+#+end_src
+
+~cargo test~
+~cargo test -p add_one~
+*** Installing Binaries with cargo install
+=allows you to install and use binary crates locally.=
+=can only install packages that have binary targets.=
+  A binary target is the runnable program that is created if the crate has a src/main.rs file or another file specified as a binary, as opposed to a library target that isn’t runnable on its own but is suitable for including within other programs.
+
+~cargo install ripgrep~
+=If you installed Rust using rustup.rs and don’t have any custom configurations, this directory will be $HOME/.cargo/bin.=
+*** Extending Cargo with Custom Commands
+=Cargo is designed so you can extend it with new subcommands without having to modify Cargo.=
+=If a binary in your $PATH is named cargo-something, you can run it as if it was a Cargo subcommand by running cargo something.=
+=Custom commands like this are also listed when you run cargo --list.=
 * Chapter 15 smart pointers that the standard library provides and the traits that enable their functionality
 
 The most common kind of pointer in Rust is a reference
