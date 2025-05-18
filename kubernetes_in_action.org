@@ -373,4 +373,869 @@ If you’re using Google Kubernetes Engine
 
 ~minikube dashboard~  
 * “Chapter 3. Pods: running containers in Kubernetes”
+** Introducing pods
+A pod never spans two nodes.
+
+[[./pictures/kubernetes/19.png]]
+
+magine an app consisting of multiple processes that either communicate through IPC (Inter-Process Communication) or through locally stored files, which requires them to run on the same machine.
+If you run multiple unrelated processes in a single container, it is your responsibility to keep all those processes running, manage their logs, and so on.
+=Therefore, you need to run each process in its own container.=
+
+=Because you’re not supposed to group multiple processes into a single container, it’s obvious you need another higher-level construct that will allow you to bind containers together and manage them as a single unit.=
+--- =pods=
+Kubernetes achieves this by configuring Docker to have all containers of a pod share the same set of Linux namespaces instead of each container having its own set.
+all containers of a pod run under the =same Network and UTS namespaces (we’re talking about Linux namespaces here), they all share the same hostname and network interfaces.=
+all containers of a pod run under the =same IPC namespace and can communicate through IPC.=
+=also share the same PID namespace, but that feature isn’t enabled by default.=
+Because most of the container’s filesystem comes from the container image, by default, the filesystem of each container is fully isolated from other containers.
+=However, it’s possible to have them share file directories using a Kubernetes concept called a Volume=
+
+=because containers in a pod run in the same Network namespace, they share the same IP address and port space.=
+=This means processes running in containers of the same pod need to take care not to bind to the same port numbers or they’ll run into port conflicts.=
+=All the containers in a pod also have the same loopback network interface, so a container can communicate with other containers in the same pod through localhost.=
+
+=All pods in a Kubernetes cluster reside in a single flat, shared, network-address space=
+every pod can access every other pod at the other pod’s IP address.
+No NAT (Network Address Translation) gateways exist between them.
+[[./pictures/kubernetes/20.png]]
+
+Splitting the pod into two would allow Kubernetes to schedule the frontend to one node and the backend to the other node, thereby improving the utilization of your infrastructure.
+
+=A pod is also the basic unit of scaling.!!!= 注意这里说 pod 是 缩放的基本单位
+  If your pod consists of a frontend and a backend container, when you scale up the number of instances of the pod to, let’s say, two, you end up with two frontend containers and two backend containers.
+  =Usually, frontend components have completely different scaling requirements than the backends, so we tend to scale them individually.=
+
+=Pods should contain tightly coupled containers, usually a main container and containers that support the main one.=
+[[./pictures/kubernetes/21.png]]
+=sidecar container=
+Other examples of sidecar containers include log rotators and collectors, data processors, communication adapters, and others.
+
+A container shouldn’t run multiple processes.
+A pod shouldn’t contain multiple containers if they don’t need to run on the same machine.
+[[./pictures/kubernetes/22.png]]
+** Creating pods from YAML or JSON descriptors
+=Pods and other Kubernetes resources are usually created by posting a JSON or YAML manifest to the Kubernetes REST API endpoint.=
+https://kubernetes.io/docs/reference/
+~kubectl get -o yaml~
+
+=Kubernetes 中看到的 Pod、Deployment、Service、ConfigMap、Namespace、Secret、Node、Volume 等，统统都是一种 API 对象。=
+=这些对象都是以结构化数据（通常是 YAML 或 JSON）形式定义，并通过 Kubernetes API Server 管理的。=
+
+Creating a simple YAML descriptor for a pod
+#+begin_src yaml
+apiVersion: v1
+kind: Pod
+metadata: 
+  name: kubia-manaul
+spec:
+  containers:
+  - image: luksa/kubia
+  name: kubia
+  ports:
+  - containerPort: 8080
+    protocol: TCP
+#+end_src
+
+即使你在 Pod 的定义中没有明确写出端口，只要容器本身在监听某个端口（比如绑定在 0.0.0.0 上），其他 Pod 依然可以通过这个端口访问它，不会因此被限制。
+虽然不写 ports 不影响通信，但出于可读性、可维护性以及后续功能的便利性，显式声明端口是推荐做法。
+** Using kubectl explain to discover possible API object fields
+~kubectl explain pods~
+
+http://kubernetes.io/docs/api
+
+~kubectl explain pod.spec~
+** Using kubectl create to create the pod
+~kubectl create -f kubia-manual.yaml~
+
+~kubectl get pod kubia-manual -o yaml~
+
+~kubectl get pod kubia-manual -o json~
+
+~kubectl get pods~
+** Viewing application logs
+=Containerized applications usually log to the standard output and standard error stream instead of writing their logs to files.=
+
+The container runtime (Docker in your case) redirects those streams to files and allows you to get the container’s log by running
+~docker logs <container-id>~
+
+=could use ssh to log into the node where your pod is running and retrieve its logs with docker logs,=
+but Kubernetes provides an easier way.
+** Retrieving a pod’s log with kubectl logs
+To see your pod’s log
+~kubectl logs kubia-manual~
+
+Container logs are automatically rotated daily and every time the log file reaches 10MB in size.
+The kubectl logs command only shows the log entries from the last rotation.
+
+~kubectl logs kubia-manual -c kubia~
+
+=To make a pod’s logs available even after the pod is deleted, you need to set up centralized, cluster-wide logging, which stores all the logs into a central store.=
+=Chapter 17 explains how centralized logging works.=
+** Sending requests to the pod
+~kubectl~ expose command to create a service to gain access to the pod externally.
+
+=port forwarding=
+  other ways of connecting to a pod for testing and debugging purposes.
+  ~kubectl port-forward kubia-manual 8888:8888~
+  ~curl localhost:8080~
+
+  [[./pictures/kubernetes/23.png]]
+** Organizing pods with labels
+=Organizing pods and all other Kubernetes objects is done through labels.=
+
+[[./pictures/kubernetes/24.png]]
+
+=A canary release is when you deploy a new version of an application next to the stable version, and only let a small fraction of users hit the new version to see how it behaves before rolling it out to all users.=
+=This prevents bad releases from being exposed to too many users.=
+
+Specifying labels when creating a pod
+kubia-manual-with-labels.yaml
+#+begin_src yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kubia-manual-v2
+  labels:
+    creation_method: manual 
+    env: prod 
+spec:
+  containers:
+    - image: luksa/kubia
+  name: kubia
+  ports:
+    - containerPort: 8080
+      protocol: TCP
+#+end_src
+
+~kubectl create -f kubia-manual-with-labels.yaml~
+~kubectl get pods --show-labels~
+~kubectl get pods -L creation_methon,enc~
+** Modifying labels of existing pods
+~kubectl label pods kubia-manual creation_method=manual~
+
+~kubectl label pods kubia-manual-v2 env=debug --overwrite~
+
+~kubectl get pods -L creation_method,env~
+** Listing subsets of pods through label selectors
+~kubectl get pods -l creation_method=manual~
+
+~kubectl get pods -l env~
+
+~kubectl get pods -l '!env'~
+
+~kubectl get pods -l creation_method!=manual~
+
+Selecting the product catalog microservice pods using the “app=pc” label selector
+[[./pictures/kubernetes/25.png]]
+
+~kubectl get pods -l app=pc,rel=beta~
+[[./pictures/kubernetes/26.png]]
+** Using labels and selectors to constrain pod scheduling
+All the pods you’ve created so far have been scheduled pretty much randomly across your worker nodes.
+
+Example is when you need to schedule pods performing intensive GPU-based computation only to nodes that provide the required GPU acceleration.
+
+=Using labels for categorizing worker nodes=
+=Labels can be attached to any Kubernetes object, including nodes.=
+~kubectl label node gke-kubia-85f6-node-0rrx gpu=true~
+~kubectl get nodes -l gpu=true~
+~kubectl get nodes -L gpu=true~
+列出所有节点，并在结果中显示它们是否有 gpu=true 标签（添加标签列显示）
+** Scheduling pods to specific nodes
+~kubectl create -f kubia-gpu.yaml~
+
+kubia-gpu.yaml
+#+begin_src yaml
+apiVersion: v1
+kind: Pod
+metadata
+  name: kubia-gpu
+spec:
+  nodeSelector:
+    gpu: "true"
+  containers:
+  - image: luksa/kubia
+  name: kubia
+#+end_src
+
+=nodeSelector=
+
+=you could also schedule a pod to an exact node, because each node also has a unique label with the=
+=key :kubernetes.io/hostname, value: actual hostname of the node=
+=setting the nodeSelector to a specific node by the hostname label may lead to the pod being unschedulable if the node is offline.=
+** Annotating pods
+=In addition to labels, pods and other objects can also contain annotations.=
+
+=Annotations are used instead of fields, and then once the required API changes have become clear and been agreed upon by the Kubernetes developers, new fields are introduced and the related annotations deprecated.=
+
+=A great use of annotations is adding descriptions for each pod or other API object, so that everyone using the cluster can quickly look up information about each individual object.=
+
+~kubectl get pods kubia-zxzij -o yaml~
+  the kubernetes.io/created-by annotation holds JSON data about the object that created the pod.
+
+~kubectl annotate pod kubia-manual mycompany.com/someannotation="foo bar"~
+~kubeclt describe pod kubia-manual~
+** Using namespaces to group resources
+
+Kubernetes namespaces provide a scope for objects names.
+=which also allows you to use the same resource names multiple times (across different namespaces)=
+
+can also be used for separating resources in a multi-tenant environment, splitting up resources into production, development, and QA environments, or in any other way you may need
+
+但有一种 K8s API Object -- Node resource, which is global and not tied to a single namespace.
+
+=Kubernetes 中看到的 Pod、Deployment、Service、ConfigMap、Namespace、Secret、Node、Volume 等，统统都是一种 API 对象。=
+=这些对象都是以结构化数据（通常是 YAML 或 JSON）形式定义，并通过 Kubernetes API Server 管理的。=
+
+ ~kubectl get ns~
+ ~kubectl get pod --namespace kube-system~
+ ➜  OrgFiles git:(main) ✗ kubectl get pods --namespace kube-system
+NAME                               READY   STATUS    RESTARTS      AGE
+coredns-668d6bf9bc-wjftr           1/1     Running   4 (31s ago)   11d
+etcd-minikube                      1/1     Running   4 (36s ago)   11d
+kube-apiserver-minikube            1/1     Running   4 (26s ago)   11d
+kube-controller-manager-minikube   1/1     Running   5 (36s ago)   11d
+kube-proxy-gt5hb                   1/1     Running   4 (36s ago)   11d
+kube-scheduler-minikube            1/1     Running   4 (36s ago)   11d
+metrics-server-7fbb699795-zbbps    1/1     Running   7 (19s ago)   11d
+storage-provisioner                1/1     Running   8 (23s ago)   11d
+
+=Besides isolating resources, namespaces are also used for allowing only certain users access to particular resources and even for limiting the amount of computational resources available to individual users.=
+
+A namespace is a Kubernetes resource like any other, so you can create it by posting a YAML file to the Kubernetes API server.
+=Kubernetes 中看到的 Pod、Deployment、Service、ConfigMap、Namespace、Secret、Node、Volume 等，统统都是一种 API 对象。=
+=这些对象都是以结构化数据（通常是 YAML 或 JSON）形式定义，并通过 Kubernetes API Server 管理的。=
+
+custom-namespace.yaml
+#+begin_src yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name : custom-namespace  
+#+end_src
+
+~kubectl create -f custom-namespace.yaml~
+~kubectl create namepsace custom-namespace~
+
+=everything in Kubernetes has a corresponding API object that you can create, read, update, and delete by posting a YAML manifest to the API server=
+=Kubernetes 中看到的 Pod、Deployment、Service、ConfigMap、Namespace、Secret、Node、Volume 等，统统都是一种 API 对象。=
+=这些对象都是以结构化数据（通常是 YAML 或 JSON）形式定义，并通过 Kubernetes API Server 管理的。=
+
+Managing objects in other namespaces
+~kubectl create -f kubia-manual.yaml -n custom-namespace~
+=When listing, describing, modifying, or deleting objects in other namespaces, you need to pass the --namespace (or -n) flag to kubectl.=
+
+The current context’s namespace and the current context itself can be changed through =kubectl config commands.=
+
+为了快速输入命令
+~/.xxxrc
+#+begin_src shell
+alias kcb='kubectl config set-context $(kubectl config current-context) --namespace'
+#+end_src
+
+=Whether namespaces provide network isolation depends on which networking solution is deployed with Kubernetes.=
+** Stopping and removing pods
+delete by name
+~kubectl delete pod kubia-gpu~
+
+=Kubernetes sends a SIGTERM signal to the process and waits a certain number of seconds (30 by default) for it to shut down gracefully.=
+=If it doesn’t shut down in time, the process is then killed through SIGKILL.=
+=To make sure your processes are always shut down gracefully, they need to handle the SIGTERM signal properly.=
+
+~kubectl delete po pod1 pod2~
+
+delete pods using label selectors
+~kubectl delete po -l creating_method=manual~
+~kubectl delete po -l rel=cancary~
+
+canary 灰度发布/小流量发布
+
+[[./pictures/kubernetes/27.png]]
+
+delete by namespace
+~kubectl delete ns custom-namespace~
+
+delete all pods in a namespace, while keeping the namespace
+~kubectl get pods~
+delete all pods in the current namespace by using the --all option
+~kubectl delete pod --all~
+~kubectl get pods~
+Wait, what!?! The kubia-zxzij pod is terminating, but a new pod called kubia-09as0, which wasn’t there before, has appeared. No matter how many times you delete all pods, a new pod called kubia-something will emerge.
+~kubectl run~ =this doesn’t create a pod directly, but instead creates a ReplicationController, which then creates the pod.=
+=As soon as you delete a pod created by the ReplicationController, it immediately creates a new one.=
+=To delete the pod, you also need to delete the ReplicationController.=
+
+delete almost all resources in a namespace
+~kubectl delete all --all~
+
+Deleting everything with the all keyword doesn’t delete absolutely everything.
+=Certain resources (like Secrets, which we’ll introduce in chapter 7) are preserved and need to be deleted explicitly.=
+* “Chapter 4. Replication and other controllers: deploying managed pods”
+pods represent the basic deployable unit in Kubernetes.
+
+never create pods directly
+=create ReplicationControllers or Deployments to manage the actual pods=
+** Keeping pods healthy
+If the container’s main process crashes, the =Kubelet= will restart the container.
+
+But sometimes apps stop working without their process crashing.
+  =For example, a Java app with a memory leak will start throwing OutOfMemoryErrors, but the JVM process will keep running.=
+  =It would be great to have a way for an app to signal to Kubernetes that it’s no longer functioning properly and have Kubernetes restart it.=
+
+it still doesn’t solve all your problems.
+
+For example, what about those situations when your app stops responding because it falls into an infinite loop or a deadlock?
+To make sure applications are restarted in such cases, you must check an application’s health from the outside and not depend on the app doing it internally.
+
+=Kubernetes can check if a container is still alive through liveness probes=
+
+=can specify a liveness probe for each container in the pod’s specification.=
+=Kubernetes will periodically execute the probe and restart the container if the probe fails.=
+
+=Kubernetes also supports readiness probes=
+
+Kubernetes can probe a container using one of the three mechanisms:
+  An HTTP GET probe performs an HTTP GET request on the container’s IP address, a port and path you specify.
+    If the probe receives a response, and the response code doesn’t represent an error (in other words, if the HTTP response code is 2xx or 3xx), the probe is considered successful.
+    If the server returns an error response code or if it doesn’t respond at all, the probe is considered a failure and the container will be restarted as a result.
+  A TCP Socket probe tries to open a TCP connection to the specified port of the container.
+    If the connection is established successfully, the probe is successful.
+    Otherwise, the container is restarted.
+  An Exec probe executes an arbitrary command inside the container and checks the command’s exit status code.
+    If the status code is 0, the probe is successful. All other codes are considered failures.
+
+=Creating an HTTP-based liveness probe=
+create a new pod that includes an HTTP GET liveness probe.
+
+kubia-liveness-probe.yaml
+#+begin_src yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kubia-liveness
+spec:
+  containers:
+  - image: luksa/kubia-unhealthy
+  name: kubia
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 8080  
+#+end_src
+
+~kubectl get pod kubia-liveness~
+
+Obtaining the application log of a crashed container
+~kubectl logs~
+~kubectl logs mypod --pervious~
+
+~kubectl describe po kubia-liveness~
+
+~kubectl describe po kubia-liveness~
+
+Configuring additional properties of the liveness probe
+~kubectl describe~
+=These additional parameters can be customized when defining the probe.=
+add the initialDelaySeconds property to the liveness probe
+#+begin_src yaml
+livenessProbe
+  httpGet:
+    path: /
+    port: 8080
+  initialDelaySecounds: 15
+#+end_src
+
+=If you don’t set the initial delay, the prober will start probing the container as soon as it starts, which usually leads to the probe failing, because the app isn’t ready to start receiving requests.=
+=If the number of failures exceeds the failure threshold, the container is restarted before it’s even able to start responding to requests properly.=
+=Always remember to set an initial delay to account for your app’s startup time.=
+
+~kubectl describe~
+they’d have seen that the container terminated with exit code 137 or 143, telling them that the pod was terminated externally.
+=Additionally, the listing of the pod’s events would show that the container was killed because of a failed liveness probe.=
+Exit code 137 signals that the process was killed by an external signal (exit code is 128 + 9 (SIGKILL).
+Likewise, exit code 143 corresponds to 128 + 15 (SIGTERM).
+
+=For pods running in production, you should always define a liveness probe.=
+=But for a better liveness check, you’d configure the probe to perform requests on a specific URL path (/health, for example) and have the app perform an internal status check of all the vital components running inside the app to ensure none of them has died or is unresponsive.=
+=The probe’s CPU time is counted in the container’s CPU time quota, so having a heavyweight liveness probe will reduce the CPU time available to the main application processes.=
+
+You’ve already seen that the failure threshold for the probe is configurable and usually the probe must fail multiple times before the container is killed.
+=But even if you set the failure threshold to 1, Kubernetes will retry the probe several times before considering it a single failed attempt.=
+=Therefore, implementing your own retry loop into the probe is wasted effort.=
+This job is performed by the Kubelet on the node hosting the pod, the Kubernetes Control Plane components running on the master(s) have no part in this process.
+Those pods aren’t managed by anything except by the Kubelet.
+But if the node itself crashes, it’s the Control Plane that must create replacements for all the pods that went down with the node.
+** ReplicationControllers
+=A ReplicationController is a Kubernetes resource that ensures its pods are always kept running.=
+
+[[./pictures/kubernetes/28.png]]
+
+A ReplicationController constantly monitors the list of running pods and makes sure the actual number of pods of a “type” always matches the desired number.
+  If too few such pods are running, it creates new replicas from a pod template.
+  If too many such pods are running, it removes the excess replicas.
+  how there can be more than the desired number of replicas. This can happen for a few reasons:
+    Someone creates a pod of the same type manually.
+    Someone changes an existing pod’s “type.”
+    Someone decreases the desired number of pods, and so on.
+
+I’ve used the term pod “type” a few times.
+But no such thing exists.
+=Replication-Controllers don’t operate on pod types, but on sets of pods that match a certain label selector=
+
+A ReplicationController’s reconciliation loop
+[[./pictures/kubernetes/29.png]]
+
+A ReplicationController has three essential parts:
+  A label selector, which determines what pods are in the ReplicationController’s scope
+  A replica count, which specifies the desired number of pods that should be running
+  A pod template, which is used when creating new pod replicas
+[[./pictures/kubernetes/30.png]]
+
+=Like pods and other Kubernetes resources, you create a ReplicationController by posting a JSON or YAML descriptor to the Kubernetes API server.=
+kubia-rc.yaml
+#+begin_src yaml
+apiVersion: v1
+kind: Replicationcontroller
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - namee: kubia
+        images: luksa/kubia
+        ports:
+        - containerPort: 8080  
+#+end_src
+
+~kubectl create -f kubia-rc.yaml~
+
+~kubectl get pods~
+
+~kubectl delete pod XXX~
+~kubectl get pods~
+=the one deleted is terminating=
+
+~kubectl get replicationcontroller/rc~
+~kubectl describe rc kubia~
+[[./pictures/kubernetes/31.png]]
+
+using Google Kubernetes Engine to run these examples, you have a three-node Kubernetes cluster.
+~gcloud compute ssh xxx~
+~$sudo ifconfig eth0 down~
+
+~kubectl get node~
+~gcloud compute instance reset XXX~
+
+=a ReplicationController manages pods that match its label selector.=
+=By changing a pod’s labels, it can be removed from or added to the scope of a ReplicationController.=
+=It can even be moved from one ReplicationController to another.=
+=Although a pod isn’t tied to a ReplicationController, the pod does reference it in the metadata.ownerReferences field, which you can use to easily find which ReplicationController a pod belongs to.=
+=keep in mind that when you changed the pod’s labels, the replication controller noticed one pod was missing and spun up a new pod to replace it.=
+
+~kubectl label pod kubia-dmdck type=special~
+~kubectl get pods --show-labels~
+~kubectl label pod kubia=dmdck app=foo --overwrite~
+~kubectl get pods -L app~
+You’re using the -L app option to display the app label in a column.
+
+Removing a pod from the scope of a ReplicationController by changing its labels
+[[./pictures/kubernetes/32.png]]
+If you know a pod is malfunctioning, you can take it out of the ReplicationController’s scope, let the controller replace it with a new one, and then debug or play with the pod in any way you want. Once you’re done, you delete the pod.
+
+=Changing the ReplicationController’s label selector=
+Kubernetes does allow you to change a ReplicationController’s label selector
+You’ll never change a controller’s label selector, but you’ll regularly change its pod template.
+
+=Changing the pod template=
+Changing a ReplicationController’s pod template only affects pods created afterward and has no effect on existing pods.
+[[./pictures/kubernetes/33.png]]
+
+~kubectl edit rc kubia~
+This will open the ReplicationController’s YAML definition in your default text editor.
+After you save your changes and exit the editor, kubectl will update the ReplicationController
+环境变量 $KUBE_EDITOR 选择对应的编辑器
+~/.XXXrc
+
+~export KUBE_EDITOR="emacs -nw"~
+如果没有设置，则是 $EDITOR
+
+=Horizontally scaling pods=
+~kubectl scale rc kubia --replicas=10~
+or
+~kubectl edit rc kubia~
+by editing the ReplicationController's definition
+All this command does is modify the =spec.replicas= field of the ReplicationController’s definition
+
+~kubectl get rc~
+
+[[./pictures/kubernetes/34.png]]
+
+When deleting a ReplicationController with kubectl delete, you can keep its pods running by passing the --cascade=false option to the command
+~kubectl delete rc kubia --cascade=false~
+
+=You’ve deleted the ReplicationController so the pods are on their own.=
+They are no longer managed.
+=But you can always create a new ReplicationController with the proper label selector and make them managed again.=
+** Using ReplicaSets instead of ReplicationControllers
+
+a new generation of ReplicationController and replaces it completely (ReplicationControllers will eventually be deprecated).
+
+A ReplicaSet behaves exactly like a ReplicationController, but it has more expressive pod selectors.
+For example, a ReplicaSet can match all pods that include a label with the key env, whatever its actual value is (you can think of it as env=*).
+
+kuia-replicaset.yaml
+#+begin_src yaml
+apiVersion: apps/v1beta2
+kind: ReplicaSet
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        images: luska/kubia  
+#+end_src
+
+=API version attribute=
+apiversion: apps/v1beta2
+pecifies two things:
+  • The API group (which is apps in this case)
+  • The actual API version (v1beta2)
+
+~kubectl get replicaset/rs~
+~kubectl describe rs~
+
+kubia=replicaset-match-experssions.yaml
+#+begin_src yaml
+...
+  selector:
+    matchExpression:
+    - key: app
+      operator: In
+      values:
+      - kubia
+...  
+#+end_src
+
+each expression must contain a key, an operator, and possibly (depending on the operator) a list of values.
+
+You’ll see four valid operators:
+  In—Label’s value must match one of the specified values.
+  NotIn—Label’s value must not match any of the specified values.
+  Exists—Pod must include a label with the specified key (the value isn’t important). When using this operator, you shouldn’t specify the values field.
+  DoesNotExist—Pod must not include a label with the specified key. The values property must not be specified.
+
+Remember, always use them instead of ReplicationControllers, but you may still find ReplicationControllers in other people’s deployments.
+
+~kubectl delete rs kubia~
+=Deleting the ReplicaSet should delete all the pods.=
+List the pods to confirm that’s the case.
+** Running exactly one pod on each node with DaemonSets
+Both ReplicationControllers and ReplicaSets are used for running a specific number of pods deployed anywhere in the Kubernetes cluster.
+
+DaemonSets run only a single pod replica on each node, whereas ReplicaSets scatter them around the whole cluster randomly
+
+[[./pictures/kubernetes/35.png]]
+
+=Those cases include infrastructure-related pods that perform system-level operations.=
+=For example, you’ll want to run a log collector and a resource monitor on every node.=
+=Another good example is Kubernetes’ own kube-proxy process, which needs to run on all nodes to make services work.=
+Outside of Kubernetes, such processes would usually be started through system init scripts or the systemd daemon during node boot up.
+On Kubernetes nodes, you can still use systemd to run your system processes, but then you can’t take advantage of all the features Kubernetes provides.
+
+If a node goes down, the DaemonSet doesn’t cause the pod to be created elsewhere.
+But when a new node is added to the cluster, the DaemonSet immediately deploys a new pod instance to it.
+Like a ReplicaSet, a DaemonSet creates the pod from the pod template configured in it.
+
+=Using a DaemonSet to run pods only on certain nodes=
+A DaemonSet deploys pods to all nodes in the cluster, unless you specify that the pods should only run on a subset of all the nodes.
+This is done by specifying the =node-Selector property in the pod template=, which is part of the DaemonSet definition (similar to the pod template in a ReplicaSet or ReplicationController).
+
+[[./pictures/kubernetes/36.png]]
+
+used node selectors to deploy a pod onto specific nodes
+  ~kubectl label node gke-kubia-85f6-node-0rrx gpu=true~
+  
+  kubia-gpu.yaml
+  #+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata
+    name: kubia-gpu
+  spec:
+    nodeSelector:
+      gpu: "true"
+    containers:
+    - image: luksa/kubia
+    name: kubia
+  #+end_src
+  
+  ~kubectl create -f kubia-gpu.yaml~
+
+Let’s imagine having a daemon called ssd-monitor that needs to run on all nodes that contain a solid-state drive (SSD).
+  You’ll create a DaemonSet that runs this daemon on all nodes that are marked as having an SSD.
+  The cluster administrators have added the disk=ssd label to all such nodes, so you’ll create the DaemonSet with a node selector that only selects nodes with that label.
+
+Using a DaemonSet with a node selector to deploy system pods only on certain nodes
+[[./pictures/kubernetes/36.png]]
+
+ssd-monitor-daemon-ser.yaml
+#+begin_src yaml
+apiVersion: apps/v1beta2
+kind: DaemonSet  
+metadata:
+  name: ssd-monitor
+spec:
+  selector:
+    matchLabels:
+      app: ssd-monitor
+  template:
+    metadata:
+      labels:
+        app: ssd-monitor
+    spec:
+      nodeSelector:
+        disk: ssd
+      containers:
+      - name: main
+        image: luksa/ssd-monitor
+#+end_src
+
+~kubectl createe -f ssd-monitor-daemonset.yaml~
+~kubectl get ds~
+~kubectl get node~
+~kubectl label node minikube disk=ssd~
+~kubectl get po~
+
+Removing the required label from the node
+~kubectl label node minikube disk=hdd --overwrite~
+~kubectl get po~
+** Running pods that perform a single completable task
+You’ll have cases where you only want to run a task that terminates after completing its work.
+
+Processes in such pods are restarted when they exit.
+
+But in a completable task, after its process terminates, it should not be restarted again.
+
+=Kubernetes includes support for this through the Job resource, it allows you to run a pod whose container isn’t restarted when the process running inside finishes successfully.=
+
+Pods managed by Jobs are rescheduled until they finish successfully.
+In the event of a node failure, the pods on that node that are managed by a Job will be rescheduled to other nodes the way ReplicaSet pods are.
+[[./pictures/kubernetes/37.png]]
+
+exporter.yaml
+#+begin_src yaml
+apiVersion: batch/v1
+kind: job
+metadata:
+  name: batch-job
+spce:
+  template:
+    metadata:
+      labels:
+        app: batch-job
+    spec:
+      restartPolicy: onFailure
+      constainers:
+      - name: main
+        image: luksa/batch-job  
+#+end_src
+
+In a pod’s specification, you can specify what Kubernetes should do when the processes running in the container finish.
+=This is done through the restartPolicy pod spec property, which defaults to Always.=
+Job pods can’t use the default policy, because they’re not meant to run indefinitely.
+=Therefore, you need to explicitly set the restart policy to either OnFailure or Never.=
+
+~kubectl create -f exporter.yaml~
+~kubectl get jobs~
+~kubectl get pods~
+~kubectl get pods --show-all~
+~kubectl logs xxxPod~
+
+=Running multiple pod instances in a Job=
+Jobs may be configured to create more than one pod instance and run them in parallel or sequentially.
+This is done by setting the completions and the parallelism properties in the Job spec.
+
+#+begin_src yaml
+apiVersion: batch/v1
+kind: job
+metadata:
+  name: multi-completion-batch-job
+spce:
+  completions: 5
+  parallelism: 2
+  template:
+    metadata:
+      labels:
+        app: batch-job
+    spec:
+      restartPolicy: OnFailure
+      constainers:
+      - name: main
+        image: luksa/batch-job  
+#+end_src
+
+~kubectl get pods~
+
+scaling a Job, you also can
+
+~kubectl scale job multi-completion-batch-job --replicas 3~
+
+=Limiting the time allowed for a Job pod to complete=
+=A pod’s time can be limited by setting the activeDeadlineSeconds property in the pod spec.=
+=You can configure how many times a Job can be retried before it is marked as failed by specifying the spec.backoffLimit field in the Job manifest.=
+
+=Scheduling Jobs to run periodically or once in the future=
+many batch jobs need to be run at a specific time in the future or repeatedly in the specified interval.
+In Linux- and UNIX-like operating systems, these jobs are better known as cron jobs.
+Kubernetes supports them, too.
+
+=Creating a CronJob=
+cronkob.yaml
+#+begin_src yaml
+apiversion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: batch-job-every-fifteen-minutes
+spec:
+  schedule: "0,15,30,45 * * * *"
+  jobTemplate:
+    spce:
+      template:
+        metadata:
+          labels:
+            app: periodic-batch-job
+        spec:
+          restartpolicy: OnFailure
+          containers:
+          - name: main
+            image: luska/batch-job
+#+end_src
+
+A CronJob creates Job resources from the jobTemplate property configured in the CronJob spec
+
+You may have a hard requirement for the job to not be started too far over the scheduled time.
+=In that case, you can specify a deadline by specifying the startingDeadlineSeconds field in the CronJob specification as shown in the following listing.=
+
+cronkob.yaml
+#+begin_src yaml
+apiversion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: batch-job-every-fifteen-minutes
+spec:
+  schedule: "0,15,30,45 * * * *"
+  startingDeadlineseconds: 15
+  ...
+#+end_src
+* “Chapter 5. Services: enabling clients to discover and talk to pods”
+
+Pods need a way of finding other pods if they want to consume the services they provide.
+
+A Kubernetes Service is a resource you create to make a single, constant point of entry to a group of pods providing the same service.
+
+Each service has an IP address and port that never change while the service exists.
+The service address doesn’t change even if the pod’s IP address changes.
+=Additionally, by creating the service, you also enable the frontend pods to easily find the backend service by its name through either environment variables or DNS.=
+
+Both internal and external clients usually connect to pods through services.
+[[./pictures/kubernetes/38.png]]
+
+Connections to the service are load-balanced across all the backing pods.
+
+You probably remember label selectors and how they’re used in Replication-Controllers and other pod controllers to specify which pods belong to the same set.
+=The same mechanism is used by services in the same way=
+=Label selectors determine which pods belong to the Service.=
+[[./pictures/kubernetes/39.png]]
+
+~kubectl expose~
+  created a Service resource with the same pod selector as the one used by the ReplicationController,
+  thereby exposing all its pods through a single IP address and port.
+or
+create a service manually by posting a =YAML= to the Kubernetes API server.
+
+kubia-svc.yaml
+#+begin_src yaml
+apiVersion: v1
+kind: service
+metadata:
+  name: kubia
+spce:
+  ports:
+    - port: 80
+      targetPort: 8080
+    selector:
+      app: kubia
+#+end_src
+
+~kubectl get services/svc~
+
+=The primary purpose of services is exposing groups of pods to other pods in the cluster, but you’ll usually also want to expose services externally.=
+
+~kubectl exec~ allows you to remotely run arbitrary commands inside an existing container of a pod.
+
+~kubectl exec pod -- curl -s http://service_ip~
+
+=The double dash (--) in the command signals the end of command options for kubectl.=
+
+Using kubectl exec to test out a connection to the service by running curl in one of the pods
+[[./pictures/kubernetes/40.png]]
+
+这里是随机转发到不同的pod中
+If you want all requests made by a certain client to be redirected to the same pod every time, you can =set the service’s sessionAffinity property to ClientIP=
+#+begin_src yaml
+apiVersion: v1
+kind: Service
+spec:
+  sessionAffinity: ClientIP
+  ...
+#+end_src
+This makes the service proxy redirect all requests originating from the same client IP to the same pod.
+
+Kubernetes supports only two types of service session affinity: None and ClientIP.
+You may be surprised it doesn’t have a cookie-based session affinity option, but you need to understand that Kubernetes services don’t operate at the HTTP level.
+Services deal with TCP and UDP packets and don’t care about the payload they carry.
+Because cookies are a construct of the HTTP protocol, services don’t know about them, which explains why session affinity cannot be based on cookies.
+
+Using a single, multi-port service exposes all the service’s ports through a single cluster IP.
+When creating a service with multiple ports, you must specify a name for each port.
+#+begin_src yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia  
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+  - name: https
+    port: 443
+    targetPort: 8443
+  selector:
+    app: kubia
+#+end_src
+
+
+
+
+
+
+
 
