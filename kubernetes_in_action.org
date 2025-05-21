@@ -1232,10 +1232,145 @@ spec:
     app: kubia
 #+end_src
 
+=Using named ports=
+#+begin_src yaml
+kind: Pod
+spec:
+  containers:
+  - name: kubia
+    ports:
+    - name: http
+      containerPort: 8080
+    - name: https
+      containerPort; 8443
+#+end_src
 
+Referring to named ports in a service
+#+begin_src yaml
+apiVersion: v1
+kind: Service
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+  - name: https
+    port: 443
+    targetPort: https  
+#+end_src
 
+what if you later decide you’d like to move that to port 80?
+=If you’re using named ports, all you need to do is change the port number in the pod spec (while keeping the port’s name unchanged).=
+=As you spin up pods with the new ports, client connections will be forwarded to the appropriate port numbers, depending on the pod receiving the connection (port 8080 on old pods and port 80 on the new ones).=
+** Discovering services
+By creating a service, you now have a single and stable IP address and port that you can hit to access your pods.
+=This address will remain unchanged throughout the whole lifetime of the service.=
 
+But how do the client pods know the IP and port of a service?
+=Kubernetes also provides ways for client pods to discover a service’s IP and port.=
+=1.When a pod is started, Kubernetes initializes a set of environment variables pointing to each service that exists at that moment.=
+~kubectl delete po --all~
+~kubectl exec xxxpod env~
+KUBIA_SERVICE_HOST and the KUBIA_SERVICE_PORT environment variables
 
+when you have a frontend pod that requires the use of a backend database server pod, you can expose the backend pod through a service called backend-database and then have the frontend pod look up its IP address and port through the environment variables BACKEND_DATABASE_SERVICE_HOST and BACKEND_DATABASE_SERVICE_PORT.
 
+=2.Discovering services through DNS=
+~kubectl get pods -n kube-system~
+kube-dns
+=As the name suggests, the pod runs a DNS server, which all other pods running in the cluster are automatically configured to use (Kubernetes does that by modifying each container’s /etc/resolv.conf file).=
+=Each service gets a DNS entry in the internal DNS server, and client pods that know the name of the service can access it through its fully qualified domain name (FQDN) instead of resorting to environment variables.=
+  backend-database.default.svc.cluster.local
+  You can omit the svc.cluster.local suffix and even the namespace, when the frontend pod is in the same namespace as the database pod.
 
+~kubectl exec -it kubia-3inly bash~
+~$curl http://kubia.default.svc.cluster.local~
+~$curl http://kubia.default~
+~$curl http://kubia~
 
+You can omit the namespace and the svc.cluster.local suffix because of how the DNS resolver inside each pod’s container is configured.
+~cat /etc/resolv.conf~
+search default.svc.cluster.local svc.cluster.local cluster.local ...
+
+=curl-ing the service works, but pinging it doesn’t. That’s because the service’s cluster IP is a virtual IP, and only has meaning when combined with the service port.=
+** =Connecting to services living outside the cluster=
+service <-> endpoint <-> inner pods
+~kubectl describe svc kubia~
+The service’s pod selector is used to create the list of endpoints.
+The list of pod IPs and ports that represent the endpoints of this service
+An Endpoints resource (yes, plural) is a list of IP addresses and ports exposing a service.
+The Endpoints resource is like any other Kubernetes resource, so you can display its basic info with kubectl get
+~kubectl get endpoints kubia~
+=the pod selector is defined in the service spec, is used to build a list of IPs and ports, which is then stored in the Endpoints resource.=
+** =Manually configuring service endpoints=
+If you create a service without a pod selector, Kubernetes won’t even create the Endpoints resource (after all, without a selector, it can’t know which pods to include in the service).
+
+create a service without a selector
+#+begin_src yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-service
+spec:
+  ports:
+  - port: 80  
+#+end_src
+没有selector就不会创建endpoints
+
+=Creating an Endpoints resource for a service without a selector=
+Endpoints are a separate resource and not an attribute of a service.
+Because you created the service without a selector, the corresponding Endpoints resource hasn’t been created automatically,
+#+begin_src yaml
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: external-service
+subsets:
+  - addresses:
+    - ip: 11.11.11.11
+    - ip: 22.22.22.22
+    ports:
+    - port: 80  
+#+end_src
+
+The Endpoints object needs to have the same name as the service and contain the list of target IP addresses and ports for the service.
+=After both the Service and the Endpoints resource are posted to the server, the service is ready to be used like any regular service with a pod selector.=
+
+[[./pictures/kubernetes/41.png]]
+=Containers created after the service is created will include the environment variables for the service, and all connections to its IP:port pair will be load balanced between the service’s endpoints.=
+=If you later decide to migrate the external service to pods running inside Kubernetes, you can add a selector to the service, thereby making its Endpoints managed automatically.=
+=The same is also true in reverse—by removing the selector from a Service, Kubernetes stops updating its Endpoints.=
+This means a service IP address can remain constant while the actual implementation of the service is changed.？？？这句没懂
+** Creating an alias for an external service
+Instead of exposing an external service by manually configuring the service’s Endpoints,
+a simpler method allows you to refer to an external service by its fully qualified domain name (FQDN).
+
+#+begin_src yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-service
+spec:
+  type: ExternalName
+  externalName: someapi.somecompany.com
+  ports:
+  - port: 80  
+#+end_src
+
+After the service is created, pods can connect to the external service through the external-service.default.svc.cluster.local domain name (or even external-service) instead of using the service’s actual FQDN.
+更灵活的后续切换：你可以稍后：
+  修改 externalName 来指向另一个外部服务，或
+  把 type 改成 ClusterIP，然后用 selector 或手动方式将其改为指向 Kubernetes 内部的 Pod。
+这样，客户端不需要任何改动，服务提供者却可以随时切换服务实现或位置。
+
+=ExternalName services are implemented solely at the DNS level—a simple CNAME DNS record is created for the service.=
+=A CNAME record points to a fully qualified domain name instead of a numeric IP address.=
+=Therefore, clients connecting to the service will connect to the external service directly, bypassing the service proxy completely=
+因此，连接到该 Service 的客户端会直接连接到外部服务，完全绕过了 Kubernetes 的服务代理（如 kube-proxy）。
+即不会走 ClusterIP、iptables、或 kube-proxy 中的 NAT 转发机制。
+正因为如此，这类服务甚至不会分配一个 Cluster IP地址。
+它没有虚拟 IP，也无法通过常规 Service 的方式进行负载均衡或流量拦截。
+** Exposing services to external clients
+[[./pictures/kubernetes/42.png]]
+
+1.
