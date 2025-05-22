@@ -1373,4 +1373,53 @@ After the service is created, pods can connect to the external service through t
 ** Exposing services to external clients
 [[./pictures/kubernetes/42.png]]
 
-1.
+1.setting the service type to =NodePort=
+  For a NodePort service, each cluster node opens a port on the node itself (hence the name) and redirects traffic received on that port to the underlying service.
+2.setting the service to =LoadBalancer=
+  This makes the service accessible through a dedicated load balancer, provisioned from the cloud infrastructure Kubernetes is running on.
+3.Creating an =Ingress resource=, a radically different mechanism for exposing multiple services through a single IP address
+  operates at the HTTP level (network layer 7) and can thus offer more features than layer 4 services can.
+
+A NodePort service definition: kubia-svc-nodeport.yaml  
+#+begin_src yaml
+apiVersion: v1
+kind: Service
+metadata:
+  nam: kubia-nodeport
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 8080
+    nodePort: 30123
+selector:
+  app: kubia
+#+end_src
+
+=Specifying the port isn’t mandatory; Kubernetes will choose a random port if you omit it.=
+
+~kubectl get svc kubia-nodeport~
+
+[[./pictures/kubernetes/43.png]]
+
+An incoming connection to one of those ports will be redirected to a randomly selected pod, which may or may not be the one running on the node the connection is being made to.
+
+if you’re running this on GKE
+you need to configure the Google Cloud Platform’s firewalls to allow external connections to your nodes on that port.
+~gcloud compute firewall-rules create kubia-svc-rule --alow=tcp:30123~
+** Using JSONPath to get the IPs of all your nodes
+You can find the IP in the JSON or YAML descriptors of the nodes.
+
+~kubectl get nodes -o jsonpath='{.items[*].status.address[?(@.type=="ExternalIP")].address}'~
+
+You’re probably familiar with XPath and how it’s used with XML.
+JSONPath is basically XPath for JSON.
+XPath（XML Path Language）是一种用于在 XML 文档中定位节点（如元素、属性、文本等）的语言。
+http://kubernetes.io/docs/user-guide/jsonpath
+
+when using minikube, easily access your NodePort service
+~minikube service <service-name> [-n <namespace>]~
+
+the load balancer can be provisioned automatically by creating a LoadBalancer
+** Exposing a service through an external load balancer
+
