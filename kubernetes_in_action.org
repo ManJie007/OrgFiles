@@ -1631,3 +1631,2623 @@ Although they currently support only L7 (HTTP/HTTPS) load balancing, support for
 You’ve already learned that pods are included as endpoints of a service if their labels match the service’s pod selector.
 [[*=Connecting to services living outside the cluster=]]
 
+The pod may need time to load either configuration or data, or it may need to perform a warm-up procedure to prevent the first user request from taking too long and affecting the user experience.
+It makes sense to not forward requests to a pod that’s in the process of starting up until it’s fully ready.
+
+liveness probes, keep your apps healthy by ensuring unhealthy containers are restarted automatically.
+[[*Keeping pods healthy]]
+
+Similar to liveness probes, Kubernetes allows you to also define a =readiness probe= for your pod.
+
+=The readiness probe is invoked periodically and determines whether the specific pod should receive client requests or not.=
+
+Like liveness probes, three types of readiness probes exist:
+  =1.An Exec probe, where a process is executed. The container’s status is determined by the process’ exit status code=
+  =2.An HTTP GET probe, which sends an HTTP GET request to the container and the HTTP status code of the response determines whether the container is ready or not.=
+  =3.A TCP Socket probe, which opens a TCP connection to a specified port of the container. If the connection is established, the container is considered ready.=
+
+When a container is started, Kubernetes can be configured to wait for a configurable amount of time to pass before performing the first readiness check.
+After that, it invokes the probe periodically and acts based on the result of the readiness probe.
+
+=Unlike liveness probes, if a container fails the readiness check, it won’t be killed or restarted.=
+=Liveness probes keep pods healthy by killing off unhealthy containers and replacing them with new, healthy ones, whereas readiness probes make sure that only pods that are ready to serve requests receive them.=
+
+[[./pictures/kubernetes/47.png]]
+A pod whose readiness probe fails is removed as an endpoint of a service.
+if a pod’s readiness probe fails, the pod is removed from the Endpoints object. 
+
+A readiness probe makes sure clients only talk to those healthy pods and never notice there’s anything wrong with the system.
+
+you’ll add a readiness probe to your existing pods by modifying the Replication-Controller’s pod template.
+~kubectl edit command~ to add the probe to the pod template in your existing ReplicationController
+
+~kubectl edit rc kubia~
+When the ReplicationController’s YAML opens in the text editor, find the container specification in the pod template and add the following readiness probe definition to the first container under spec.template.spec.containers.
+
+RC creating a pod with a readiness probe: kubia-rc-readinessprobe.yaml
+#+begin_src yaml
+apiVersion: v1
+kind: ReplicationController
+...
+spec:
+  ...
+  spce:
+    containers:
+    - name: kubia
+      image: lukas/kubia
+      readlinessProbe:
+        exec:
+          command:
+          - ls
+          - /var/ready
+     ...
+#+end_src
+
+The reason you’re defining such a strange readiness probe is so you can toggle its result by creating or removing the file in question.
+The file doesn’t exist yet, so all the pods should now report not being ready, right? Well, not exactly.
+  =As you may remember from the previous chapter, changing a ReplicationController’s pod template has no effect on existing pods.=
+  =You need to delete the pods and have them re-created by the Replication-Controller.=
+  ~kubectl get pods~
+  ~kubectl exec kubia-2r1qb -- touch /var/ready~
+  ~kubectl get po kubia-2r1qb~
+  TThe pod still isn’t ready. Is there something wrong or is this the expected result?
+  Take a more detailed look at the pod with ~kubectl describe~
+  The readiness probe is checked periodically—every 10 seconds by default. The pod isn’t ready because the readiness probe hasn’t been invoked yet. But in 10 seconds at the latest, the pod should become ready and its IP should be listed as the only endpoint of the service (run ~kubectl get endpoints kubia-loadbalancer to confirm~ ).
+
+=In the real world, the readiness probe should return success or failure depending on whether the app can (and wants to) receive client requests or not.=
+=Manually removing pods from services should be performed by either deleting the pod or changing the pod’s labels instead of manually flipping a switch in the probe.=
+
+=If you want to add or remove a pod from a service manually, add enabled=true as a label to your pod and to the label selector of your service.=
+=Remove the label when you want to remove the pod from the service.=
+
+=Always define a readiness probe=
+  You should always define a readiness probe, even if it’s as simple as sending an HTTP request to the base URL
+
+=Don’t include pod shutdown logic into your readiness probe=
+  Kubernetes removes the pod from all services as soon as you delete the pod.
+
+** Using a headless service for discovering individual pods
+services can be used to provide a stable IP address allowing clients to connect to pods (or other endpoints) backing each service.
+Each connection to the service is forwarded to one randomly selected backing pod.
+
+=what if the client needs to connect to all of those pods?=
+=What if the backing pods themselves need to each connect to all the other backing pods?=
+
+For a client to connect to all pods, it needs to figure out the the IP of each individual pod.
+
+=1.One option is to have the client call the Kubernetes API server and get the list of pods and their IP addresses through an API call, but because you should always strive to keep your apps Kubernetes-agnostic, using the API server isn’t ideal.=
+=2.Luckily, Kubernetes allows clients to discover pod IPs through DNS lookups.=
+  when you perform a DNS lookup for a service, the DNS server returns a single IP—the service’s clust.
+  =But if you tell Kubernetes you don’t need a cluster IP for your service (you do this by setting the clusterIP field to None in the service specification), the DNS server will return the pod IPs instead of the single service IP.=
+  Instead of returning a single DNS A record, the DNS server will return multiple A records for the service, each pointing to the IP of an individual pod backing the service at that moment.
+  Clients can therefore do a simple DNS A record lookup and get the IPs of all the pods that are part of the service.
+
+  =Setting the clusterIP field in a service spec to None makes the service headless=
+  A headless service: kubia-svc-headless.yaml
+  #+begin_src yaml
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: kubia-headless
+  spec:
+    clusterIP: None
+    ports:
+    - port: 80
+      targetPort: 8080
+    seletor:
+      app: kubia
+  #+end_src
+
+   =注意 service 关联 pod 是通过 selector=
+
+~kubectl create~
+~kubectl get~
+~kubectl describe~
+
+You’ll see it has no cluster IP and its endpoints include (part of) the pods matching its pod selector.
+
+Discovering pods through DNS
+~nslookup~ and ~dig~
+To perform DNS-related actions, you can use the tutum/dnsutils container image, which is available on Docker Hub and contains both the nslookup and the dig binaries.
+
+Running a pod without writing a YAML manifest
+this time you want to create only a pod—you don’t need to create a ReplicationController to manage the pod. You can do that like this:
+
+~kubectl run dnsutils --image=tutum/dnsutils --generator=run-pod/v1 --command -- sleep infinity~
+
+=The trick is in the --generator=run-pod/v1 option, which tells kubectl to create the pod directly, without any kind of ReplicationController or similar behind=
+
+~kubectl exec dnsutils nslookup kubia-headless~
+The DNS server returns two different IPs for the kubia-headless.default.svc.cluster.local FQDN.
+~kubectl get pods -o wide~
+
+This is different from what DNS returns for regular (non-headless) services, such as for your kubia service, where the returned IP is the service’s cluster IP:
+~kubectl exec dnsutils nslookup kubia~
+
+Although headless services may seem different from regular services, they aren’t that different from the clients’ perspective. 
+=Even with a headless service, clients can connect to its pods by connecting to the service’s DNS name, as they can with regular services.=
+=But with headless services, because DNS returns the pods’ IPs, clients connect directly to the pods, instead of through the service proxy.=
+=A headless services still provides load balancing across pods, but through the DNS round-robin mechanism instead of through the service proxy.=
+
+Discovering all pods—even those that aren’t ready
+only pods that are ready become endpoints of services.
+[[*Signaling when a pod is ready to accept connections]]
+
+use the DNS lookup mechanism to find even those unready pods.
+To tell Kubernetes you want all pods added to a service, regardless of the pod’s readiness status, you must add the following annotation to the service:
+#+begin_src yaml
+kind: Service
+metadata:
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+#+end_src
+
+As the annotation name suggests, as I’m writing this, this is an alpha feature.
+The Kubernetes Service API already supports a new service spec field called publishNotReadyAddresses, which will replace the tolerate-unready-endpoints annotation.
+In Kubernetes version 1.9.0, the field is not honored yet (the annotation is what determines whether unready endpoints are included in the DNS or not).
+Check the documentation to see whether that’s changed.
+
+** Troubleshooting services
+1.First, make sure you’re connecting to the service’s cluster IP from within the cluster, not from the outside.
+2.Don’t bother pinging the service IP to figure out if the service is accessible (remember, the service’s cluster IP is a virtual IP and pinging it will never work).
+3.If you’ve defined a readiness probe, make sure it’s succeeding; otherwise the pod won’t be part of the service.
+4.To confirm that a pod is part of the service, examine the corresponding Endpoints object with kubectl get endpoints.
+5.If you’re trying to access the service through its FQDN or a part of it (for example, myservice.mynamespace.svc.cluster.local or myservice.mynamespace) and it doesn’t work, see if you can access it using its cluster IP instead of the FQDN.
+6.Check whether you’re connecting to the port exposed by the service and not the target port.
+7.Try connecting to the pod IP directly to confirm your pod is accepting connections on the correct port.
+8.If you can’t even access your app through the pod’s IP, make sure your app isn’t only binding to localhost.
+
+* “Chapter 6. Volumes: attaching disk storage to containers
+
+In the previous three chapters, we introduced pods and other Kubernetes resources that interact with them, namely ReplicationControllers, ReplicaSets, DaemonSets, Jobs, and Services.
+
+we’re going back inside the pod to learn how its containers can access external disk storage and/or share storage between them.
+
+pods are similar to logical hosts where processes running inside them share resources such as CPU, RAM, network interfaces, and others.
+
+each container in a pod has its own isolated filesystem, because the file-system comes from the container’s image.
+Every new container starts off with the exact set of files that was added to the image at build time.
+
+Kubernetes provides this by defining storage volumes.
+a volume is created when the pod is started and is destroyed when the pod is deleted.
+a volume’s contents will persist across container restarts.
+Also, if a pod contains multiple containers, the volume can be used by all of them at once.
+
+注意这里 volume 的对应的单位是 Pod 而不是 contariner
+
+A volume is available to all containers in the pod, but it must be mounted in each container that needs to access it.
+In each container, you can mount the volume in any location of its filesystem.
+
+=Linux allows you to mount a filesystem at arbitrary locations in the file tree.=
+Three containers sharing two volumes mounted at various mount paths
+
+=It’s not enough to define a volume in the pod;=
+=you need to define a VolumeMount inside the container’s spec also, if you want the container to be able to access it.=
+=The two volumes in this example can both initially be empty, so you can use a type of volume called emptyDir.=
+=Kubernetes also supports other types of volumes that are either populated during initialization of the volume from an external source, or an existing directory is mounted inside the volume.=
+=This process of populating or mounting a volume is performed before the pod’s containers are started.=
+
+A volume is bound to the lifecycle of a pod and will stay in existence only while the pod exists,
+=but depending on the volume type, the volume’s files may remain intact even after the pod and volume disappear, and can later be mounted into a new volume.=
+
+Introducing available volume types
+  emptyDir—A simple empty directory used for storing transient data.
+  hostPath—Used for mounting directories from the worker node’s filesystem into the pod.
+  gitRepo—A volume initialized by checking out the contents of a Git repository.
+  nfs—An NFS share mounted into the pod.
+  gcePersistentDisk (Google Compute Engine Persistent Disk), awsElasticBlockStore (Amazon Web Services Elastic Block Store Volume), azureDisk (Microsoft Azure Disk Volume)—Used for mounting cloud provider-specific storage.
+  cinder, cephfs, iscsi, flocker, glusterfs, quobyte, rbd, flexVolume, vsphere-Volume, photonPersistentDisk, scaleIO—Used for mounting other types of network storage.
+  =configMap, secret, downwardAPI—Special types of volumes used to expose certain Kubernetes resources and cluster information to the pod.=
+  persistentVolumeClaim—A way to use a pre- or dynamically provisioned persistent storage. (We’ll talk about them in the last section of this chapter.)
+
+A single pod can use multiple volumes of different types at the same time, and, as we’ve mentioned before, each of the pod’s containers can either have the volume mounted or not.
+
+** Using volumes to share data between containers
+
+using an emptyDir volume
+=Because the volume’s lifetime is tied to that of the pod, the volume’s contents are lost when the pod is delete=
+An emptyDir volume is especially useful for sharing files between containers running in the same pod.
+But it can also be used by a single container for when a container needs to write data to disk temporarily, such as when performing a sort operation on a large dataset, which can’t fit into the available memor.
+
+
+A container’s filesystem may not even be writable (we’ll talk about this toward the end of the book), so writing to a mounted volume might be the only option.
+[[*Introducing the Docker container platform]]
+
+Building the fortune container image
+use Nginx as the web server and the UNIX fortune command to generate the HTML content.
+The fortune command prints out a random quote every time you run it.
+
+fortuneloop.sh
+#+begin_src shell
+#!/bin/bash
+trap "exit" SIGINT
+while:
+do
+  echo ${date} Writing fortune to /var/htdocs/index.html
+  /usr/games/fortune > /var/htdocs/index.html
+  sleep 10
+done
+#+end_src
+
+trap 是 Unix/Linux shell 中的一个内置命令，用于捕获和处理信号（signals）和 shell 脚本中的异常情况。
+
+Dockerfile
+#+begin_src Dockerfile
+FROM ubuntu:latest
+RUN apt-get update; apt-get -y install fortune
+ADD fortuneloop.sh /bin/fortuneloop.sh
+ENTRYPOINT /bin/fortuneloop.sh  
+#+end_src
+
+~docker build -t luska/fortune .~
+~docker push luska/fortune~
+
+creating the pod
+pod manifest fortune-pod.yaml
+#+begin_src yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fortune
+spec:
+  containers:
+  - image: luksa/fortune
+    name: html-generator
+    volumeMounts:
+    - name: html
+      mountPath: /var/htdocs
+  - image: nginx:alpine
+    name: web-server
+    volumeMounts:
+    - name: html
+      mountPath: /usr/share/nginx/html
+      readOnly: true
+    ports:
+    - containerPort: 80
+      protocol: TCP
+  volumes:
+  - name: html
+    emptyDir: {}
+#+end_src
+
+~kubectl port-forward fortune 8080:80~
+~curl http://localhost:8080~
+As an exercise, you can also expose the pod through a service instead of using port forwarding.
+
+The emptyDir you used as the volume was created on the actual disk of the worker node hosting your pod, so its performance depends on the type of the node’s disks.
+=But you can tell Kubernetes to create the emptyDir on a tmpfs filesystem (in memory instead of on disk).=
+
+#+begin_src yaml
+volumes:
+  - name: html
+    emptyDir:
+      medium: Memory
+#+end_src
+
+Using a Git repository as the starting point for a volume
+
+A gitRepo volume is basically an emptyDir volume that gets populated by cloning a Git repository and checking out a specific revision when the pod is starting up (but before its containers are created).
+[[./pictures/kubernetes/49.png]]
+
+If your pod is managed by a ReplicationController, deleting the pod will result in a new pod being created and this new pod’s volume will then contain the latest commits.
+
+The only drawback to this is that you need to delete the pod every time you push changes to the gitRepo and want to start serving the new version of the website.
+
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: gitrepo-volume-pod
+  spec:
+    containers:
+    - image: nginx:alphine
+      name: web-server
+      volumeMounts:
+      - name: html
+        mountPath: /usr/share/nginx/html
+        readOnly: true
+      ports:
+      - containerPort: 80
+        protocol: TCP
+    volumes:
+    - name: html
+      gitRepo:
+        repository: https://github.com/luksa/kubia-website-example.git
+        revision: master
+        directory: .
+#+end_src
+
+With the pod running, you can try hitting it through port forwarding, a service, or by executing the curl command from within the pod (or any other pod inside the cluster).
+
+** Introducing sidecar containers
+A sidecar container is a container that augments the operation of the main container of the pod.
+** Other types of volumes, however, don’t create a new directory, but instead mount an existing external directory into the pod’s container’s filesystem.
+But certain system-level pods (remember, these will usually be managed by a DaemonSet) do need to either read the node’s files or use the node’s filesystem to access the node’s devices through the filesystem.
+Kubernetes makes this possible through a =hostPath volume.=
+
+[[./pictures/kubernetes/50.png]]
+
+A hostPath volume points to a specific file or directory on the node’s filesyste.
+
+hostPath volumes are the first type of persistent storage we’re introducing
+
+If a pod is deleted and the next pod uses a hostPath volume pointing to the same path on the host, the new pod will see whatever was left behind by the previous pod, but only if it’s scheduled to the same node as the first pod.
+
+it’s not a good idea to use ahostPath volume for regular pods
+** Examining system pods that use hostPath volumes
+~kubectl get pods --namespace kube-system~
+
+~kubectl describe pods XXX --namespace kube-system~
+** Using persistent storage
+When an application running in a pod needs to persist data to disk and have that same data available even when the pod is rescheduled to another node, you can’t use any of the volume types we’ve mentioned so far.
+Because this data needs to be accessible from any cluster node, it must be stored on some type of network-attached storage (NAS).
+To learn about volumes that allow persisting data, you’ll create a pod that will run the MongoDB document-oriented NoSQL database.
+=Running a database pod without a volume or with a non-persistent volume doesn’t make sense, except for testing purposes, so you’ll add an appropriate type of volume to the pod and mount it in the MongoDB container.=
+
+1.Using a GCE Persistent Disk in a pod volume
+Google Compute Engine (GCE)
+
+You need to create it in the same zone as your Kubernetes cluster.
+
+~gcloud container clusters list~
+  to find pod in which zone
+
+~gcloud compute disks create --size=1GiB --zone=xxx mongodb~
+
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: mongodb
+  sepc:
+    volumes:
+    - name: mongodb-data
+      gcepersistentdisk:
+        pdName: mongodb
+        fsType: ext4
+    containers:
+    - image: mongo
+      name: mongodb
+      volumeMounts:
+      - name: mongodb-data
+        mountPath: /data/db
+      ports:
+      - containerPort: 27017
+        protocol: TCP
+#+end_src
+
+If you’re using Minikube, you can’t use a GCE Persistent Disk, but you can deploy mongodb-pod-hostpath.yaml, which uses a hostPath volume instead of a GCE PD.
+
+[[./pictures/kubernetes/51.png]]
+A pod with a single container running MongoDB, which mounts a volume referencing an external GCE Persistent Disk
+
+~kubectl exec -it mongodb mongo~
+
+#+begin_src shell
+use mystore
+db.foo.insert({name:'foo'})
+db.foo.find()
+#+end_src
+
+~kubectl delete pod mongodb~
+~kubectl create -f mongodb-pod-gcepd.yaml~
+~kubectl get pod -o wide~
+** Using other types of volumes with underlying persistent storage
+If your Kubernetes cluster is running on Amazon’s AWS EC2, for example, you can use an awsElasticBlockStore volume to provide persistent storage for your pods.
+If your cluster runs on Microsoft Azure, you can use the azureFile or the azureDisk volume.
+
+A pod using an awsElasticBlockStore volume: mongodb-pod-aws.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: mongodb
+  sepc:
+    volumes:
+    - name: mongodb-data
+      awsElasticBoockStroe:
+        pdName: my-volume
+        fsType: ext4
+    containers:
+    - ...
+#+end_src
+
+A pod using an nfs volume: mongodb-pod-nfs.yaml
+#+begin_src yaml
+  volumes:
+  - name: mongodb-data
+    nfs:
+      server: 1.2.3.4
+      path: /some/path
+#+end_src
+
+Other supported options include iscsi for mounting an ISCSI disk resource, glusterfs for a GlusterFS mount, rbd for a RADOS Block Device, flexVolume, cinder, cephfs, flocker, fc (Fibre Channel), and others.
+
+~kubectl explain~
+To see details on what properties you need to set for each of these volume types, you can either turn to the Kubernetes API definitions in the Kubernetes API reference or look up the information through
+** Decoupling pods from the underlying storage technology
+All the persistent volume types we’ve explored so far have required the developer of the pod to have knowledge of the actual network storage infrastructure available in the cluster.
+** Introducing PersistentVolumes and PersistentVolumeClaims
+Using a PersistentVolume inside a pod is a little more complex than using a regular pod volume, so let’s illustrate how pods, PersistentVolumeClaims, PersistentVolumes, and the actual underlying storage relate to each other
+
+[[./pictures/kubernetes/52.png]]
+
+PersistentVolumes are provisioned by cluster admins and consumed by pods through PersistentVolumeClaims.
+
+A gcePersistentDisk PersistentVolume: mongodb-pv-gcepd.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: mongodb-pv
+  spec:
+    capacity:
+      storage: 1Gi
+    accessModes:
+    - ReadWriteOnce
+    - ReadOnlyMany
+    persistentVolumeReclaimPolicy: Retain
+    gcePersistentDisk:
+      pdName: mongodb
+      fsType: ext4
+#+end_src
+
+Referencing a GCE PD in a pod’s volume
+#+begin_src yaml
+  spec:
+    volumes:
+    - name: mongodb-data
+    gcePersistentDisk:
+      pdName: mongodb
+      fsType: ext4
+  ...
+#+end_src
+
+~kubectl get pv(persistentvolume)~
+
+PersistentVolumes, like cluster Nodes, don’t belong to any namespace, unlike pods and PersistentVolumeClaims.
+[[./pictures/kubernetes/53.png]]
+** Claiming a PersistentVolume by creating a PersistentVolumeClaim
+Creating a PersistentVolumeClaim
+
+A PersistentVolumeClaim: mongodb-pvc.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: mongodb-pvc
+  spec:
+    resources:
+      requests:
+        storage: 1Gi
+    accessModes:
+    - ReadWriteOnce
+  storageClassName: ""
+#+end_src
+
+~kubectl get pvc(persistentvolumeclaim)~
+
+The claim is shown as Bound to PersistentVolume mongodb-pv. Note the abbreviations used for the access modes:
+  RWO—ReadWriteOnce—Only a single node can mount the volume for reading and writing.
+  ROX—ReadOnlyMany—Multiple nodes can mount the volume for reading.
+  RWX—ReadWriteMany—Multiple nodes can mount the volume for both reading and writing.
+
+Using a PersistentVolumeClaim in a pod
+
+A pod using a PersistentVolumeClaim volume: mongodb-pod-pvc.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: mongodb
+  spec:
+    containers:
+    - image: mongo
+      name: mongodb
+      volumeMounts:
+      - name: mongodb-data
+        mountPath: /data/db
+      ports:
+      - containerPort: 27017
+        protocol: TCP
+     volumes:
+     - name: mongodb-data
+       persistentVolumeClaim:
+         claimName: mongodb-pvc
+#+end_src
+
+Retrieving MongoDB’s persisted data in the pod using the PVC andPV
+#+begin_src shell
+kubectl exec -it mongodb mongo
+use mystore
+db.foo.find()
+#+end_src
+** Understanding the benefits of using PersistentVolumes and claims
+Using the GCE Persistent Disk directly or through a PVC and PV
+[[./pictures/kubernetes/54.png]]
+
+Recycling PersistentVolumes
+~kubectl delete pod mongodb~
+~kubectl delete pvc mongodb-pvc~
+~kubctl get pv~
+
+Reclaiming PersistentVolumes manually
+You told Kubernetes you wanted your PersistentVolume to behave like this when you created it—by setting its persistentVolumeReclaimPolicy to Retain.
+=the only way to manually recycle the PersistentVolume to make it available again is to delete and recreate the PersistentVolume resource.=
+
+Reclaiming PersistentVolumes automatically
+Two other possible reclaim policies exist: Recycle and Delete.
+The first one deletes the volume’s contents and makes the volume available to be claimed again.
+This way, the PersistentVolume can be reused multiple times by different PersistentVolumeClaims and different pods
+
+The lifespan of a PersistentVolume, PersistentVolumeClaims, and pods using them
+[[./pictures/kubernetes/55.png]]
+
+You can change the PersistentVolume reclaim policy on an existing PersistentVolume.
+For example, if it’s initially set to Delete, you can easily change it to Retain to prevent losing valuable data.
+** Dynamic provisioning of PersistentVolumes
+The cluster admin, instead of creating PersistentVolumes, can deploy a PersistentVolume provisioner and define one or more StorageClass objects to let users choose what type of PersistentVolume they want.
+
+The users can refer to the StorageClass in their PersistentVolumeClaims and the provisioner will take that into account when provisioning the persistent storage.
+
+Similar to PersistentVolumes, StorageClass resources aren’t namespaced.
+
+Defining the available storage types through StorageClass resources
+A StorageClass definition: storageclass-fast-gcepd.yaml
+#+begin_src yaml
+  apiVersion: stroage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    name: fast
+  provisioner: kubernetes.io/gce-pd
+  parameters:
+    type: pd-ssd
+    zone: europe-west1-b
+#+end_src
+
+If using Minikube, deploy the file storageclass-fast-hostpath.yaml.
+
+=The StorageClass resource specifies which provisioner should be used for provisioning the PersistentVolume when a PersistentVolumeClaim requests this StorageClass.=
+
+=The parameters defined in the StorageClass definition are passed to the provisioner and are specific to each provisioner plugin.=
+
+Requesting the storage class in a PersistentVolumeClaim
+
+Creating a PVC definition requesting a specific storage class
+A PVC with dynamic provisioning: mongodb-pvc-dp.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: mongodb-pvc
+  spec:
+    storageClassName: fast
+    resources:
+      request:
+        storage: 100Mi
+    accessModes:
+      - ReadWriteOnce
+#+end_src
+
+If you reference a non-existing storage class in a PVC, the provisioning of the PV will fail (you’ll see a ProvisioningFailed event when you use kubectl describe on the PVC).
+
+~kubectl get pvc mongodb-pvc~
+~kubectl get pv~
+
+~gcloud compute disks list~
+
+The nice thing about StorageClasses is the fact that claims refer to them by name.
+
+The PVC definitions are therefore portable across different clusters, as long as the StorageClass names are the same across all of them.
+
+Then, once you deploy the storage class, you as a cluster user can deploy the exact same PVC manifest and the exact same pod manifest as before.
+** Dynamic provisioning without specifying a storage class
+~kubectl get sc(storage class)~
+
+~kubectl get sc standard -o yaml~
+
+ou can create a PVC without specifying the storageClassName attribute and (on Google Kubernetes Engine) a GCE Persistent Disk of type pdstandard will be provisioned for you.
+
+#+begin_src yaml
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: mongodb-pvc2
+  spec:
+    resources:
+      request:
+        storage: 100Mi
+    accessModes:
+      - ReadWriteOnce
+#+end_src
+
+~kubectl get pvc mongodb-pvc2~
+~kubectl get pv xxx~
+~gcloud compute disks list~
+
+Forcing a PersistentVolumeClaim to be bound to one of the pre-pro- ovisioned PersistentVolumes
+#+begin_src yaml
+  kind: PersistentVolumeClaim
+  spec:
+    storageClassName: ""
+#+end_src
+Specifying an empty string as the storage class name ensures the PVC binds to a pre-provisioned PV instead of dynamically provisioning a new one.
+If you hadn’t set the storageClassName attribute to an empty string, the dynamic volume provisioner would have provisioned a new PersistentVolume, despite there being an appropriate pre-provisioned PersistentVolume
+
+the best way to attach persistent storage to a pod is to only create the PVC (with an explicitly specified storageClassName if necessary) and the pod (which refers to the PVC by name). 
+The complete picture of dynamic provisioning of PersistentVolumes
+[[./pictures/kubernetes/56.png]]
+* “Chapter 7. ConfigMaps and Secrets: configuring applications
+** Configuring containerized applications
+1.Passing command-line arguments to containers
+2.Setting custom environment variables for each container
+3.Mounting configuration files into containers through a special type of volume
+** Passing command-line arguments to containers
+Defining the command and arguments in Docker
+
+In a Dockerfile, two instructions define the two parts:
+=ENTRYPOINT defines the executable invoked when the container is started.=
+=CMD specifies the arguments that get passed to the ENTRYPOINT.=
+
+~docker run <image>~
+or
+~docker run <image> <arguments>~
+
+ENTRYPOINT ["nod", "app.js"]
+This runs the node process directly (not inside a shell), as you can see by listing the processes running inside the container
+~docker exec xxx ps x~
+or
+If you’d used the shell form (ENTRYPOINT node app.js), these would have been the container’s processes:
+~docker exec -it xxx ps x~
+可以看运行的进程
+
+The shell process is unnecessary, which is why you should always use the exec form of the ENTRYPOINT instruction.
+
+Making the interval configurable in your fortune image
+Fortune script with interval configurable through argument: fortune-args/fortuneloop.sh
+#+begin_src shell
+#!/bin/bash
+trap "exit" SIGINT
+INTERVAL=$1
+echo Configured to generate new fortune every $INTERVAL seconds
+mkdir -p /var/htdocs
+while :
+do
+  echo $(date) Writing fortune to /var/htdocs/index.html
+  /usr/games/fortune > /var/htdocs/index.html
+  sleep $INTERVAL
+done  
+#+end_src
+
+Dockerfile for the updated fortune image: fortune-args/Dockerfile
+#+begin_src Dockerfile
+FROM ubuntu:latest
+RUN apt-get update : apt-get -y install fortune
+ADD fortuneloop.sh /bin/fortuneloop.sh
+ENTRYPOINT ["/bin/fortuneloop.sh"]
+CMD ["10"]  
+#+end_src
+
+~docker build -t docker.io/luska/fortune:args .~
+~docker push docker.io/luska/fortune:args~
+
+~docker run -it docker.io/luska/fortune:args~
+~docker run -it docker.io/luska/fortune:args 15~
+
+Overriding the command and arguments in Kubernetes
+In Kubernetes, when specifying a container, you can choose to override both ENTRYPOINT and CMD.
+To do that, you set the properties command and args in the container specification, as shown in the following listing.
+A pod definition specifying a custom command and arguments
+#+begin_src yaml
+  kind: Pod
+  spec:
+    containers:
+    - image: some/images
+      command: ["/bin/command"]
+      args: ["arg1", "arg2", "arg3"]
+#+end_src
+
+The command and args fields can’t be updated after the pod is created.
+
+Specifying the executable and its arguments in Docker vs Kubernetes
+| Docker     | kubernetes | Description                                         |
+|------------+------------+-----------------------------------------------------|
+| ENTRYPOINT | command    | The executable that's executed inside the container |
+| CMD        | args       | The arguments passed to the executable              |
+
+
+Passing an argument in the pod definition: fortune-pod-args.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: fortune2s
+  spec:
+    containers:
+    - images: luska/fortune:args
+      args: ["2"]
+      name: html-generator
+      volumeMounts:
+      - name: html
+        mountPath: /var/htdocs
+  ...        
+#+end_src
+** Setting environment variables for a container
+Like the container’s command and arguments, the list of environment variables also cannot be updated after the pod is created.
+
+Environment variables can be set per container.
+[[./pictures/kubernetes/57.png]]
+
+Fortune script with interval configurable through env var: fortune-env/fortuneloop.sh
+#+begin_src shell
+  #!/bin/bash
+  trap "exit" SIGINT
+  echo Configured to generate new fortune every $INTERVAL seconds
+  mkdir -p /var/htdocs
+  while :
+  do
+      echo $(date) Writing fortune to /var/htdocs/index.html
+      /usr/games/fortune > /var/htdocs/index.html
+      sleep $INTERVAL
+  done
+#+end_src
+
+Specifying environment variables in a container definition
+#+begin_src yaml
+  kind: Pod
+  spec:
+    containers:
+    - image: luksa/fortune:env
+      env:
+      - nmae: INTERVAL
+        value: "30"
+      name: html-generator
+  ...      
+#+end_src
+
+you set the environment variable inside the container definition, not at the pod level.
+
+Referring to other environment variables in a variable’s value
+Referring to an environment variable inside another one
+#+begin_src yaml
+  env:
+  - name: FIRST_VAR
+    value: "foo"
+  - name: SECOND_VAR
+    value: "$(FIRST_VAR)bar"
+#+end_src
+
+you can do that using a ConfigMap resource and using it as a source for environment variable values using the valueFrom instead of the value field.
+** Decoupling configuration with a ConfigMap
+a map containing key/value pairs with the values ranging from short literals to full config files.
+
+An application doesn’t need to read the ConfigMap directly or even know that it exists.
+The contents of the map are instead passed to containers as either environment variables or as files in a volume.
+because environment variables can be referenced in command-line arguments using the $(ENV_VAR) syntax, you can also pass ConfigMap entries to processes as command-line arguments.
+
+Pods use ConfigMaps through environment variables and configMap volumes.
+[[./pictures/kubernetes/58.png]]
+
+Sure, the application can also read the contents of a ConfigMap directly through the Kubernetes REST API endpoint if needed
+
+Two different ConfigMaps with the same name used in different environments
+[[./pictures/kubernetes/59.png]]
+
+creating a configmap
+~kubctl create configmap -f fortune-config --from-literal=sleep-interval=25~
+
+=ConfigMap keys must be a valid DNS subdomain (they may only contain alphanumeric characters, dashes, underscores, and dots).=
+=They may optionally include a leading dot.=
+
+~kubectl create configmap myconfigmap --from-literal=foo=bar --from-literal=bar=baz --from-literal=one=two~
+
+inspect the YAML descriptor of the ConfigMap you created by using the kubectl get command
+~kubectl get configmap fortune-config -o yaml~
+
+~kubectl create -f fortune-config.yaml~
+
+the kubectl create configmap command also supports reading files from disk and storing them as individual entries in the ConfigMap
+~kubectl create configmap my-config --from-file=config-file.conf~
+
+~kubectl create configmap my-config --from-file=customkey=config-file.conf~
+This command will store the file’s contents under the key customkey.
+As with literals, you can add multiple files by using the --from-file argument multiple time
+
+Creating a ConfigMap from files in a directory
+~kubectl create configmap my-config --from-file=/path/to/dir~
+
+can use a combination of all the options mentioned here
+~kubectl create configmap my-config --from-file=foo.json --from-file=bar=foorbar.conf --form-file=config-opts/ --from-literal=some-thing~
+
+Creating a ConfigMap from individual files, a directory, and a literal value
+[[./pictures/kubernetes/60.png]]
+** Passing a ConfigMap entry to a container as an environment variable
+Pod with env var from a config map: fortune-pod-env-configmap.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: fortune-env-from-configmap
+  spec:
+    containers:
+    - image: luksa/fortune:env
+      env:
+      - name: INTERVAL
+        valueFrom:
+          configMapKeyRef:
+            name: fortune-config
+            key: sleep-interval
+  ...            
+#+end_src
+
+Passing a ConfigMap entry as an environment variable to a container
+[[./pictures/kubernetes/61.png]]
+
+The container referencing the non-existing ConfigMap will fail to start, but the other container will start normally. If you then create the missing ConfigMap, the failed container is started without requiring you to recreate the pod.
+You can also mark a reference to a ConfigMap as optional (by setting configMapKeyRef.optional: true)
+** Passing all entries of a ConfigMap as environment variables at once
+Pod with env vars from all entries of a ConfigMap
+
+#+begin_src yaml
+  spec:
+    containers:
+    - image: some-image
+      envForm:
+      - prefix: CONFIG_
+        configMapKeyRef:
+          name: fortune-config
+  ...  
+#+end_src
+** Passing a ConfigMap entry as a command-line argument
+
+can’t reference ConfigMap entries directly in the pod.spec.containers.args field,
+=but you can first initialize an environment variable from the ConfigMap entry and then refer to the variable inside the arguments=
+
+[[./pictures/kubernetes/62.png]]
+
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: fortune-args-from-configmap
+  spec:
+    containers:
+    - image: luska/fortune:args
+      env:
+      - name: INTERVAL
+        valueFrom:
+          configMapKeyRef:
+            name: fortune-config
+            key: sleep-interval
+            args: ["$(INTERVAL)"]
+     ...
+#+end_src
+** Using a configMap volume to expose ConfigMap entries as files
+A configMap volume will expose each entry of the ConfigMap as a file.
+
+The process running in the container can obtain the entry’s value by reading the contents of the file.
+
+An Nginx config with enabled gzip compression: my-nginx-config.conf
+#+begin_src config
+server {
+  listen        80;
+  server_name   www.kubia-example.com;
+  gzip          on;
+  gzip_types    text/plain application/xml;
+  location  / {
+    root /usr/share/nginx/html;
+    index index.thml index.htm;
+  }
+}
+#+end_src
+
+~kubectl delete configmap fortune-config~
+
+Create a new directory called configmap-files and store the Nginx config from the previous listing into configmap-files/my-nginx-config.conf.
+To make the ConfigMap also contain the sleep-interval entry, add a plain text file called sleep-interval to the same directory and store the number 25 in it
+
+[[./pictures/kubernetes/63.png]]
+
+~kubectl create configmap fortune-config --from-file=configmap-files~
+
+~kubectl get configmap fortune-config -o yaml~
+
+Using the ConfigMap’s entries in a volume
+creating a volume that references the ConfigMap by name and mounting the volume in a container.
+
+Nginx reads its config file from /etc/nginx/nginx.conf.
+the default config file automatically includes all .conf files in the /etc/nginx/conf.d/ subdirectory
+Passing ConfigMap entries to a pod as files in a volume
+
+[[./pictures/kubernetes/64.png]]
+
+A pod with ConfigMap entries mounted as files: fortune-pod-configmap-volume.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: fortune-configmap-volume
+  spec:
+    containers:
+    - images: nginx:alphine
+      name: web-server
+      volumeMounts:
+      ...
+      - name: config
+        mountPath: /etc/nginx/conf.d
+        readOnly: true
+      ...
+      volumes:
+      ...
+      - name: config
+        configMap:
+          name: fortune-config
+      ...
+#+end_src
+
+~kubectl port-forward fortune-configmap-volume 8080:80 &~
+~curl -H "Accept-Encoding: gzip" -I localhost:8080~
+
+Examining the mounted configMap volume’s contents
+~kubectl exec fortune-configmap-volume -c web-server ls /etc/nginx/conf.d~
+
+Exposing certain ConfigMap entries in the volume
+Luckily, you can populate a configMap volume with only part of the ConfigMap’s entrie
+To define which entries should be exposed as files in a configMap volume, use the volume’s items attribute
+#+begin_src yaml
+  volumes:
+  ...
+  - name: config
+    configMap:
+      name: fortune-config
+      items:  #Selecting which entries to include in the volume by listing them
+      - key: my-nginx-config.conf
+        path: gzip.conf
+#+end_src
+
+Understanding that mounting a directory hides existing files in that directory
+  you mounted the volume as a directory, which means you’ve hidden any files that are stored in the /etc/nginx/conf.d directory in the container image itself.
+  This is generally what happens in Linux when you mount a filesystem into a nonempty directory.
+  =The directory then only contains the files from the mounted filesystem, whereas the original files in that directory are inaccessible for as long as the filesystem is mounted.=
+
+=Mounting individual ConfigMap entries as files without hiding oth- her files in the directory=
+you’re now wondering how to add individual files from a ConfigMap into an existing directory without hiding existing files stored in it.
+An additional subPath property on the volumeMount allows you to mount either a single file or a single directory from the volume instead of mounting the whole volume.
+
+Mounting a single file from a volume
+[[./pictures/kubernetes/65.png]]
+
+A pod with a specific config map entry mounted into a specific file
+#+begin_src yaml
+  spec:
+    containers:
+    - image: some/image
+      volumeMounts:
+      - name: myvolume
+        mountPath: /etc/someconfig.conf
+        subPath: myconfig.conf
+#+end_src
+
+=The subPath property can be used when mounting any kind of volume.=
+Instead of mounting the whole volume, you can mount part of it.
+
+Setting the file permissions for files in a configMap volume
+By default, the permissions on all files in a configMap volume are set to 644 (-rw-r—r--).
+You can change this by setting the defaultMode property in the volume spec
+
+#+begin_src yaml
+  volumes:
+  - name: config
+    configMap:
+      name: fortune-config
+      defaultMode: "6600"
+#+end_src
+
+Updating an app’s config without having to restart the app
+Using a ConfigMap and exposing it through a volume brings the ability to update the configuration without having to recreate the pod or even restart the container.
+
+~kubectl edit configmap fortune-config~
+~kubectl exec fortune-configmap-volume -c web-server cat /etc/nginx/conf.d/my-nginx-config.conf~
+~kubectl exec fortune-configmap-volume -c web-server -- nginx -s reload~
+
+=Understanding how the files are updated atomically=
+Kubernetes achieves this by using symbolic links.
+~kubectl exec -it fortune-volume -c web-server -- ls -lA /etc/nginx/conf.d~
+When the ConfigMap is updated, Kubernetes creates a new directory like this, writes all the files to it, and then re-links the ..data symbolic link to the new directory, effectively changing all files at once.
+
+Understanding that files mounted into existing directories don’t get updated
+=One big caveat relates to updating ConfigMap-backed volumes. If you’ve mounted a single file in the container instead of the whole volume, the file will not be updated!=
+
+Understanding the consequences of updating a ConfigMap
+if the app doesn’t reload its config automatically, modifying an existing ConfigMap (while pods are using it) may not be a good idea.
+because files in the ConfigMap volumes aren’t updated synchronously across all running instances, the files in individual pods may be out of sync for up to a whole minute.
+** Using Secrets to pass sensitive data to containers
+Secrets are much like ConfigMaps—they’re also maps that hold key-value pairs.
+  Pass Secret entries to the container as environment variables
+  Expose Secret entries as files in a volume
+
+Secret is only distributed to the nodes that run the pods that need access to the Secret.
+Also, on the nodes themselves, Secrets are always stored in memory and never written to physical storage
+
+~kubectl get secrets~
+~kubectl get secrets~
+
+=Secret contains three entries—ca.crt, namespace, and token=
+represent everything you need to securely talk to the Kubernetes API server from within your pods, should you need to do that.
+
+~kubectl describe pod~
+
+=By default, the default-token Secret is mounted into every container, but you can disable that in each pod by setting the automountService-AccountToken field in the pod spec to false or by setting it to false on the service account the pod is using.=
+
+The default-token Secret is created automatically and a corresponding volume is mounted in each pod automatically.
+[[./pictures/kubernetes/66.png]]
+
+~kubectl exec mypod ls /var/run/secrets/kubernetes.io/serviceaccount/~
+
+Creating a Secret
+1.generate the certificate and private key files (do this on your local machine).
+~openssl genrsa -out https.key 2048~
+~openssl req -new -x509 -key https.key -out https.cert -days 3650 -subj /CN=www.kubia-example.com~
+~echo bar > foo~
+~kubectl create sercet generic fortune-https --from-file=https.key --from-file=https.cert --from-file=foo~
+As you learned earlier, you could also include the whole directory with --from-file=fortune-https instead of specifying each file individually.
+
+You’re creating a generic Secret,
+but you could also have =created a tls Secret with the kubectl create secret tls command=
+
+Base64 encoding allows you to include the binary data in YAML or JSON, which are both plain-text formats.
+the maximum size of a Secret is limited to 1MB
+
+Because not all sensitive data is in binary form, Kubernetes also allows setting a Secret’s values through the stringData field.
+Adding plain text entries to a Secret using the stringData field
+#+begin_src yaml
+  kind: Secret
+  apiVersion: v1
+  stringData:
+    foo: plain text
+  data:
+    https.cert: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURCekNDQ...
+    https.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcE...
+#+end_src
+
+The stringData field is write-only (note: write-only, not read-only).
+When you retrieve the Secret’s YAML with kubectl get -o yaml, the stringData field will not be shown.
+Instead, all entries you specified in the stringData field (such as the foo entry in the previous example) will be shown under data and will be Base64-encoded like all the other entries.
+
+When you expose the Secret to a container through a secret volume, the value of the Secret entry is decoded and written to the file in its actual form (regardless if it’s plain text or binary).
+The same is also true when exposing the Secret entry through an environment variable.
+
+Using the Secret in a pod
+~kubectl edit configmap fortune-config~
+
+Modifying the fortune-config ConfigMap’s data
+#+begin_src conf
+  ...
+  data:
+    my-nginx-config.conf: |
+    server {
+      listen  80;
+      listen  443 ssl;
+      server_name www.kubia-example.com;
+      ssl_certificate  certs/https.cert;
+      ssl_certificate_key  certs/https.key;
+      ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
+      ssl_ciphers  HIGH:!aNULL:!MD5;
+
+      location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+      }
+    }
+    sleep-interval: |
+  ...
+#+end_src
+
+This configures the server to read the certificate and key files from /etc/nginx/certs, so you’ll need to mount the secret volume there
+
+create a new fortune-https pod and mount the secret volume holding the certificate and key into the proper location in the web-server container
+YAML definition of the fortune-https pod: fortune-pod-https.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: fortune-https
+  spec:
+    containers:
+    - image: luksa/fortune:env
+      name: html-generator
+      env:
+      - name: INTERVAL
+        valueFrom:
+          configMapKeyRef:
+            name: fortune-config
+            key: sleep-interval
+       volumeMounts:
+       - name: html
+         mountPath: /var/htdocs
+     - image: nginx:alpine
+       name: web-server
+       volumeMounts:
+       - name: html
+         mountPath: /usr/share/nginx/html
+         readOnly: true
+       - name: config
+         mountPath: /etc/nginx/conf.d
+         readOnly: true
+       - name: certs
+         mountPath: /etc/nginx/certs/
+         readOnly: true ❶
+       ports:
+       - containerPort: 80
+       - containerPort: 443
+     volumes:
+     - name: html
+       emptyDir: {}
+     - name: config
+       configMap:
+         name: fortune-config
+         items:
+         - key: my-nginx-config.conf
+           path: https.conf
+         - name: certs
+           secret:
+             secretName: fortune-https ❷
+#+end_src
+
+The default-token Secret, volume, and volume mount, which aren’t part of the YAML, but are added to your pod automatically, aren’t shown in the figure.
+
+Combining a ConfigMap and a Secret to run your fortune-https pod
+
+Like configMap volumes, secret volumes also support specifying file permissions for the files exposed in the volume through the defaultMode property.
+
+~kubectl port-forward fortune-https 8443:443 &~
+~curl https://localhost:8443 -k~
+~curl https://localhost:8443 -k -v~
+
+Understanding secret volumes are stored in memory
+You successfully delivered your certificate and private key to your container by mounting a secret volume in its directory tree at /etc/nginx/certs. 
+~kubectl exec fortune-https -c web-server -- mount | grep certs~
+=The secret volume uses an in-memory filesystem (tmpfs) for the Secret files.=
+
+Exposing a Secret’s entries through environment variables
+you could also have exposed individual entries from the secret as environment variables, the way you did with the sleep-interval entry from the ConfigMap.
+#+begin_src yaml
+  env:
+  - name: FOO_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: fortune-https
+        key: foo
+#+end_src
+
+Even though Kubernetes enables you to expose Secrets through environment variables, it may not be the best idea to use this feature.
+Applications usually dump environment variables in error reports or even write them to the application log at startup, which may unintentionally expose them.
+Additionally, child processes inherit all the environment variables of the parent process, so if your app runs a third-party binary, you have no way of knowing what happens with your secret data.
+
+Understanding image pull Secrets
+But sometimes Kubernetes itself requires you to pass credentials to it—for example, when you’d like to use images from a private container image registry.
+When deploying a pod, whose container images reside in a private registry, Kubernetes needs to know the credentials required to pull the image.
+
+Using a private image repository on Docker Hub
+You can mark a repository as private by logging in at http://hub.docker.com with your web browser, finding the repository and checking a checkbox.
+To run a pod, which uses an image from the private repository, you need to do two things:
+  Create a Secret holding the credentials for the Docker registry.
+  Reference that Secret in the imagePullSecrets field of the pod manifest.
+
+=Creating a Secret for authenticating with a Docker registry=
+~kubectl create secret docker-registry mydockerhubsecret --docker-username=myusername --docker-password=mypassword --docker-email=my.email@provider.com~
+~docker describe~
+.dockercfg
+
+Using the docker-registry Secret in a pod definition
+A pod definition using an image pull Secret: pod-with-private-image.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: private-pod
+  spec:
+    imagePullSecrets:
+    - name: mydockerhubsecret
+    containers:
+    - image: username/private:tag
+      name: main
+#+end_src
+
+Not having to specify image pull Secrets on every pod
+In chapter 12 you’ll learn how image pull Secrets can be added to all your pods automatically if you add the Secrets to a ServiceAccount.
+* “Chapter 8. Accessing pod metadata and other resources from applications”
+=Kubernetes enables service discovery through environment variables or DNS=
+** Passing metadata through the Downward API
+you can pass configuration data to your applications through environment variables or through configMap and secret volumes.
+
+But what about data that isn’t known up until that point—such as the pod’s IP, the host node’s name, or even the pod’s own name (when the name is generated;
+
+Both these problems are solved by the Kubernetes Downward API.
+=It allows you to pass metadata about the pod and its environment through environment variables or files (in a downwardAPI volume).=
+
+The Downward API exposes pod metadata through environment variables or files.
+[[./pictures/kubernetes/68.png]]
+
+The Downward API enables you to expose the pod’s own metadata to the processes running inside that pod.
+  The pod’s name
+  The pod’s IP address
+  The namespace the pod belongs to
+  The name of the node the pod is running on
+  The name of the service account the pod is running under
+  The CPU and memory requests for each container
+  The CPU and memory limits for each container
+  The pod’s labels
+  The pod’s annotations
+
+a service account is the account that the pod authenticates as when talking to the API server.
+
+Most items in the list can be passed to containers either through environment variables or through a downwardAPI volume,
+but labels and annotations can only be exposed through the volume.
+*** Exposing metadata through environment variables
+Downward API used in environment variables: downward-api-env.yaml
+#+begin_src yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: downward
+spec:
+  containers:
+  - name: main
+    image: busybox
+    command: ["sleep", "9999999"]
+    resources:
+    requests:
+      cpu: 15m
+      memory: 100Ki
+    limits:
+      cpu: 100m
+      memory: 4Mi
+    env:
+    - name: POD_NAME
+      valueFrom: 
+        fieldRef: 
+        fieldPath: metadata.name
+    - name: POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+        fieldPath: metadata.namespace
+    - name: POD_IP
+      valueFrom:
+        fieldRef:
+        fieldPath: status.podIP
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+        fieldPath: spec.nodeName
+    - name: SERVICE_ACCOUNT
+      valueFrom:
+        fieldRef:
+        fieldPath: spec.serviceAccountName
+    - name: CONTAINER_CPU_REQUEST_MILLICORES
+      valueFrom:
+        resourceFieldRef:
+        resource: requests.cpu
+        divisor: 1m
+    - name: CONTAINER_MEMORY_LIMIT_KIBIBYTES
+      valueFrom:
+        resourceFieldRef:
+        resource: limits.memory
+        divisor: 1Ki
+#+end_src
+
+Pod metadata and attributes can be exposed to the pod through environment variables
+[[./pictures/kubernetes/69.png]]
+
+can use kubectl exec to see all these environment variables in your container
+~kubctl exec downward env~
+*** Passing metadata through files in a downwardAPI volume
+If you prefer to expose the metadata through files instead of environment variables, you can define a downwardAPI volume and mount it into your container.
+
+=You must use a downwardAPI volume for exposing the pod’s labels or its annotations, because neither can be exposed through environment variables.=
+
+Pod with a downwardAPI volume: downward-api-volume.yaml
+#+begin_src yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: downward
+      labels:
+        foo: bar
+      annotations:
+        key1: value1
+        key2: |
+          multi
+          line
+          value
+    spec:
+      containers:
+      - name: main
+        image: busybox
+        command: ["sleep", "9999999"]
+        resources:
+        requests:
+          cpu: 15m
+          memory: 100Ki
+        limits:
+          cpu: 100m
+          memory: 4Mi
+        volumeMounts:
+        - name: downward
+          mountPath: /etc/downward
+      vulumes:
+      - name: downward
+        downwardAPI:
+          items:
+          - path: "podName"
+            fieldRef:
+              fieldPath: metadata.name
+          - path: "podNamespace"
+            fieldRef:
+              fieldPath: metadata.namespace
+          - path: "labels"
+            fieldRef:
+              fieldPath: metadata.labels              
+          - path: "annotations"
+            fieldRef:
+              fieldPath: metadata.annotations
+          - path: "containerCpuRequestMilliCores"
+            resourceFieldRef:
+              containerName: main
+              resource: requests.cpu
+              divisor: 1m
+          - path: "containerMemoryLimitBytes"
+            resourceFieldRef:
+              containerName: main
+              resource: limits.memory
+              divisor: 1
+#+end_src
+
+The files this volume will contain are configured under the downwardAPI.items attribute in the volume specification.
+
+Each item specifies the path (the filename) where the metadata should be written to and references either a pod-level field or a container resource field whose value you want stored in the file
+
+Using a downwardAPI volume to pass metadata to the container
+[[./pictures/kubernetes/70.png]]
+
+~kubectl exec downward ls -lL /etc/downward~
+=As with the configMap and secret volumes, you can change the file permissions through the downwardAPI volume’s defaultMode property in the pod spec.=
+
+you couldn’t expose labels and annotations through environment variables before, examine the following listing for the contents of the two files you exposed them in.
+
+~kubectl exec downward cat /etc/downward/labels~
+~kubectl exec downward cat /etc/downward/annotations~
+
+Updating labels and annotations
+labels and annotations can be modified while a pod is running.
+Kubernetes updates the files holding them, allowing the pod to always see up-to-date data.
+This also explains why labels and annotations can’t be exposed through environment variables.
+Because environment variable values can’t be updated afterward, if the labels or annotations of a pod were exposed through environment variables, there’s no way to expose the new values after they’re modified
+
+Referring to container-level metadata in the volume specification
+When exposing container-level metadata, such as a container’s resource limit or requests (done using resourceFieldRef), you need to specify the name of the container whose resource field you’re referencing
+#+begin_src yaml
+  spec:
+    volumes:
+    - nmae: downward
+      downwardAPI:
+        items:
+        - path: "containerCpuRequestMillicores"
+          resourceFieldRef:
+            containerName: main
+            resource: requests.cpu
+            divisor: 1m
+#+end_src
+
+Using volumes to expose a container’s resource requests and/or limits is slightly more complicated than using environment variables, but the benefit is that it allows you to pass one container’s resource fields to a different container if needed (but both containers need to be in the same pod).
+With environment variables, a container can only be passed its own resource limits and requests.
+
+The Downward API allows you to expose the data to the application without having to rewrite the application or wrap it in a shell script, which collects the data and then exposes it through environment variables.
+** Talking to the Kubernetes API server
+the Downward API provides a simple way to pass certain pod and container metadata to the process running inside them.
+It only exposes the pod’s own metadata and a subset of all of the pod’s data.
+But sometimes your app will need to know more about other pods and even other resources defined in your cluster.
+
+But when the app needs data about other resources or when it requires access to the most up-to-date information as possible, it needs to talk to the API server directly
+Talking to the API server from inside a pod to get information about other API objects
+[[./pictures/kubernetes/71.png]]
+
+Exploring the Kubernetes REST API
+~kubectl cluster-info~
+
+Because the server uses HTTPS and requires authentication, it’s not simple to talk to it directly.
+You can try accessing it with curl and using curl’s --insecure (or -k) option to skip the server certificate check, but that doesn’t get you far
+~curl https://192.168.99.100:8443 -k~
+
+rather than dealing with authentication yourself,
+you can talk to the server through a proxy by running the ~kubectl proxy~ command.
+
+The kubectl proxy command runs a proxy server that accepts HTTP connections on your local machine and proxies them to the API server while taking care of authentication, so you don’t need to pass the authentication token in every request.
+~kubectl proxy~
+As soon as it starts up, the proxy starts accepting connections on local port 8001.
+~curl localhost:8001~
+
+Exploring the Kubernetes API through the kubectl proxy
+explore the Job resource API. You’ll start by looking at what’s behind the /apis/batch path (you’ll omit the version for now), as shown in the following listing
+~curl http://localhost:8001/apis/batch~
+Resource types in batch/v1: http://localhost:8001/apis/batch/v1
+~curl http://localhost:8001/apis/batch/v1~
+Listing all Job instances in the cluster
+~curl http://localhost:8001/apis/batch/v1/jobs~
+Retrieving a specific Job instance by name
+~curl http://localhost:8001/apis/batch/v1/namespaces/default/jobs/my-job~
+~kubectl get job my-job -o json~
+Talking to the API server from within a pod
+to talk to the API server from inside a pod, you need to take care of three things
+  1.Find the location of the API server.
+  2.Make sure you’re talking to the API server and not something impersonating it.
+  3.Authenticate with the server; otherwise it won’t let you see or do anything.
+
+Running a pod to try out communication with the API server
+A pod for trying out communication with the API server: curl.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: curl
+  spec:
+    containers:
+    - name: main
+      image: tutum/curl
+      command: ["sleep", "9999999"]
+#+end_src
+~kubectl exec -it curl bash~
+
+Finding the API server’s address
+~kubectl get svc~
+environment variables are configured for each service. You can get both the IP address and the port of the API server by looking up the KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT variables (inside the container)
+~env | grep KUBERNETES_SERVICE~
+
+You may also remember that each service also gets a DNS entry, so you don’t even need to look up the environment variables, but instead simply point curl to https://kubernetes.
+~curl https://kubernetes~
+
+Although the simplest way to get around this is to use the proposed -k option (and this is what you’d normally use when playing with the API server manually), let’s look at the longer (and correct) route.
+Instead of blindly trusting that the server you’re connecting to is the authentic API server, you’ll verify its identity by having curl check its certificate.
+Never skip checking the server’s certificate in an actual application. Doing so could make your app expose its authentication token to an attacker using a man-in-the-middle attack
+
+=Verifying the server’s identity=
+In the previous chapter, while discussing Secrets, we looked at an automatically created Secret called default-token-xyz, which is mounted into each container at /var/run/secrets/kubernetes.io/serviceaccount/.
+~ls /var/run/kubernetes.io/serviceaccount/~
+
+The Secret has three entries (and therefore three files in the Secret volume).
+To verify you’re talking to the API server, you need to check if theserver’s certificate is signed by the CA
+curl allows you to specify the CA certificate with the --cacert option, so try hitting the API server again
+~curl --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt https://kubernetes~
+
+curl verified the server’s identity because its certificate was signed by the CA you trust.
+make life easier by setting the CURL_CA_BUNDLE environment variable, so you don’t need to specify --cacert every time you run curl:
+~export CURL_CA_BUNDLE=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt~
+~curl https://kubernetes~
+
+Authenticating with the API server
+You need to authenticate with the server, so it allows you to read and even update and/or delete the API objects deployed in the cluster.
+To authenticate, you need an authentication token. Luckily, the token is provided through the default-token Secret mentioned previously, and is stored in the token file in the secret volume.
+~TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)~
+~curl -H "Authorization: Bearer $TOKEN" https://kerbernetes~
+
+=Disabling role-based access control (RBAC)=
+If you’re using a Kubernetes cluster with RBAC enabled, the service account may not be authorized to access (parts of) the API server.
+You’ll learn about service accounts and RBAC in chapter 12.
+For now, the simplest way to allow you to query the API server is to work around RBAC by running the following command:
+~kubectl create clusterrolebinding permissive-binding --clusterrole=cluster-admin --group=system:serviceaccounts~
+This gives all service accounts (we could also say all pods) cluster-admin privileges, allowing them to do whatever they want.
+Obviously, doing this is dangerous and should never be done on production clusters.
+
+Getting the namespace the pod is running in
+=But if you’re paying attention, you probably noticed your secret volume also contains a file called namespace.=
+It contains the namespace the pod is running in, so you can read the file instead of having to explicitly pass the namespace to your pod through an environment variable.
+~NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)~
+~curl -H "Authorization: Bearer $TOKEN" https://kubernetes/api/v1/namespace/$NS/pods~
+
+Recapping how pods talk to Kubernetes
+1.The app should verify whether the API server’s certificate is signed by the certificate authority, whose certificate is in the ca.crt file.
+2.The app should authenticate itself by sending the Authorization header with the bearer token from the token file.
+3.The namespace file should be used to pass the namespace to the API server when performing CRUD operations on API objects inside the pod’s namespace.
+
+CRUD stands for Create, Read, Update, and Delete. The corresponding HTTP methods are POST, GET, PATCH/PUT, and DELETE, respectively.
+
+Using the files from the default-token Secret to talk to the API server
+[[./pictures/kubernetes/72.png]]
+** Simplifying API server communication with ambassador containers
+Dealing with HTTPS, certificates, and authentication tokens sometimes seems too complicated to developers
+
+=Instead of sending requests to the API server directly, you sent them to the proxy and let it take care of authentication, encryption, and server verification.=
+** Introducing the ambassador container pattern
+Instead of it talking to the API server directly, as you did in the previous section, you can run kubectl proxy in an ambassador container alongside the main container and communicate with the API server through it.
+
+Instead of talking to the API server directly, the app in the main container can connect to the ambassador through HTTP (instead of HTTPS) and let the ambassador proxy handle the HTTPS connection to the API server, taking care of security transparently.
+
+[[./pictures/kubernetes/73.png]]
+
+=Because all containers in a pod share the same loopback network interface, your app can access the proxy through a port on localhost.=
+
+Running the curl pod with an additional ambassador container
+A pod with an ambassador container: curl-with-ambassador.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: curl-with-ambassador
+  spec:
+    containers:
+    - name: main
+      image: tutum/curl
+      command: ["sleep", "9999999"]
+    - name: ambassador
+      image: luska/kubectl-proxy:1.6.2
+#+end_src
+
+~kubectl exec -it curl-with-ambassador -c main bash~
+
+Talking to the API server through the ambassador
+try connecting to the API server through the ambassador container.
+=By default, kubectl proxy binds to port 8001, and because both containers in the pod share the same network interfaces, including loopback, you can point curl to localhost:8001=
+~curl localhost:8001~
+
+Offloading encryption, authentication, and server verification to kubectl proxy in an ambassador container
+[[./pictures/kubernetes/74.png]]
+** Using client libraries to talk to the API server
+If your app only needs to perform a few simple operations on the API server, you can often use a regular HTTP client library and perform simple HTTP requests, especially if you take advantage of the kubectl-proxy ambassador container the way you did in the previous example.
+
+Using existing client libraries
+Currently, two Kubernetes API client libraries exist that are supported by the API Machinery special interest group (SIG):
+Golang client—https://github.com/kubernetes/client-go
+Python—https://github.com/kubernetes-incubator/client-python
+
+The Kubernetes community has a number of Special Interest Groups (SIGs) and Working Groups that focus on specific parts of the Kubernetes ecosystem.
+You’ll find a list of them at https://github.com/kubernetes/community/blob/master/sig-list.md.
+
+In addition to the two officially supported libraries, here’s a list of user-contributed client libraries for many other languages:
+Java client by Fabric8—https://github.com/fabric8io/kubernetes-client
+Java client by Amdatu—https://bitbucket.org/amdatulabs/amdatu-kubernetes
+Node.js client by tenxcloud—https://github.com/tenxcloud/node-kubenetes-client
+Node.js client by GoDaddy—https://github.com/godaddy/kubernetes-client
+PHP—https://github.com/devstub/kubernetes-api-php-client
+Another PHP client—https://github.com/maclof/kubernetes-client
+Ruby—https://github.com/Ch00k/kubr
+Another Ruby client—https://github.com/abonas/kubeclient
+Clojure—https://github.com/yanatan16/clj-kubernetes-api
+Scala—https://github.com/doriordan/skuber
+Perl—https://metacpan.org/pod/Net::Kubernete
+
+These libraries usually support HTTPS and take care of authentication, so you won’t need to use the ambassador container.
+** Building your own library with Swagger and OpenAPI
+If no client is available for your programming language of choice, you can use the Swagger API framework to generate the client library and documentation.
+
+=The Kubernetes API server exposes Swagger API definitions at /swaggerapi and OpenAPI spec at /swagger.json.=
+
+ http://swagger.io
+
+ Exploring the API with Swagger UI
+ Swagger, which I mentioned in the previous section, is not just a tool for specifying an API, but also provides a web UI for exploring REST APIs if they expose the Swagger API definitions.
+ You can enable it by running the API server with the --enable-swagger-ui=true option.
+ ~minikube start --extra-config=apiserver.Features.Enable-SwaggerUI=true~
+ https://<api server>:<port>/swagger-ui
+* “Chapter 9. Deployments: updating applications declaratively
+
+Updating applications running in pods
+
+The basic outline of an application running in Kubernetes
+[[./pictures/kubernetes/75.png]]
+
+You’d next like to replace all the pods with this new version.
+Because you can’t change an existing pod’s image after the pod is created, you need to remove the old pods and replace them with new ones running the new image.
+
+You have two ways of updating all those pods. You can do one of the following:
+1.Delete all existing pods first and then start the new ones.
+2.Start new ones and, once they’re up, delete the old ones. You can do this either by adding all the new pods and then deleting all the old ones at once, or sequentially, by adding new pods and removing old ones gradually.
+If your app stores data in a data store, the new version shouldn’t modify the data schema or the data in such a way that breaks the previous version.
+** Deleting old pods and replacing them with new ones
+the pod template of a ReplicationController can be updated at any time.
+
+If you have a ReplicationController managing a set of v1 pods, you can easily replace them by modifying the pod template so it refers to version v2 of the image and then deleting the old pod instances.
+
+The ReplicationController will notice that no pods match its label selector and it will spin up new instances.
+
+Updating pods by changing a ReplicationController’s pod template and deleting old Pods
+[[./pictures/kubernetes/76.png]]
+** Spinning up new pods and then deleting the old ones
+Switching from the old to the new version at once
+
+you can change the Service’slabel selector and have the Service switch over to the new pods
+This is called a =blue-green deployment.=
+You can change a Service’s pod selector with the kubectl set selector comman.
+After switching over, and once you’re sure the new version functions correctly, you’re free to delete the old pods by deleting the old ReplicationController.
+[[./pictures/kubernetes/77.png]]
+
+A rolling update of pods using two ReplicationControllers
+[[./pictures/kubernetes/78.png]]
+Doing a rolling update manually is laborious and error-prone.
+Luckily, Kubernetes allows you to perform the rolling update with a single command.
+** Performing an automatic rolling update with a ReplicationController
+
+Running the initial version of the app
+v1/app.js
+#+begin_src js
+const http = require('http');
+const os = require('os');
+
+console.log("Kubia server starting...");
+
+var handler = function(request, response) {
+  console.log("Received request from " + request.connection.remoteAddress);
+  response.writeHead(200);
+  response.end("This is v1 running in pod " + os.hostname() + "\n");
+};
+
+var www = http.createServer(handler);
+www.listen(8080);
+#+end_src
+
+Running the app and exposing it through a service using a single YAML file
+A YAML containing an RC and a Service: kubia-rc-and-service-v1.yaml
+  To run your app, you’ll create a ReplicationController and a LoadBalancer Service to enable you to access the app externally.
+  This time, rather than create these two resources separately, you’ll create a single YAML for both of them and post it to the Kubernetes API with a single kubectl create command.
+#+begin_src yaml
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: kubia-v1
+spce:
+  replicas: 3
+  template:
+    metadata:
+      name: kubia
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - image: luska/kubia:v1
+        name: nodejs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia
+spce:
+  type: LoadBalancer
+  selectoe:
+    app: kubia
+  ports:
+  - port: 80
+    targetPort: 8080
+#+end_src
+
+=YAML files can contain multiple resource definitions separated by a line with three dashes.=
+
+~kubectl get svc~
+~while true; do curl http://130.211.109.222; done~
+
+Performing a rolling update with kubectl
+~response.end("This is v2 running in pod " + os.hostname() + "\n");~
+
+Pushing updates to the same image tag
+any changes you make to the image won’t be picked up if you push them to the same tag.
+To make sure this doesn’t happen, you need to set the container’s imagePullPolicy property to Always.
+the default imagePullPolicy depends on the image tag.
+  If a container refers to the latest tag (either explicitly or by not specifying the tag at all), imagePullPolicy defaults to Always, but if the container refers to any other tag, the policy defaults to IfNotPresent.
+~kubectl rolling-update kubia-v1 kubia-v2 --image=luksa/kubia:v2~
+
+When you run the command, a new ReplicationController called kubia-v2 is created immediately
+The state of the system immediately after starting the rolling update
+[[./pictures/kubernetes/79.png]]
+
+Describing the new ReplicationController created by the rolling update
+~kubectl describe rc kubia-v2~
+
+Understanding the steps performed by kubectl before the rolling update commences
+kubectl created this ReplicationController by copying the kubia-v1 controller and changing the image in its pod template.
+=If you look closely at the controller’s label selector, you’ll notice it has been modified, too. It includes not only a simple app=kubia label, but also an additional deployment label which the pods must have in order to be managed by this ReplicationController.=
+But even if pods created by the new controller have the additional deployment label in addition to the app=kubia label, doesn’t this mean they’ll be selected by the first ReplicationController’s selector, because it’s set to app=kub
+=The rolling-update process has modified the selector of the first ReplicationController=
+~kubectl describe rc kubia-v1~
+
+Okay, but doesn’t this mean the first controller now sees zero pods matching its selector, because the three pods previously created by it contain only the app=kubia label?
+=No, because kubectl had also modified the labels of the live pods just before modifying the ReplicationController’s selector:=
+~kubectl get po --show-labels~
+
+Detailed state of the old and new ReplicationControllers and pods at the start of a rolling update
+[[./pictures/kubernetes/80.png]]
+
+Replacing old pods with new ones by scaling the two ReplicationControllers
+After setting up all this, kubectl starts replacing pods by first scaling up the new controller to 1.
+The controller thus creates the first v2 pod.
+kubectl then scales down the old ReplicationController by 1.
+
+Because the Service is targeting all pods with the app=kubia label, you should start seeing your curl requests redirected to the new v2 pod every few loop iterations
+The Service is redirecting requests to both the old and new pods during the rolling update.
+[[./pictures/kubernetes/81.png]]
+
+The final steps performed by kubectl rolling-update
+...
+Scaling kubia-v2 up to 2
+Scaling kubia-v1 down to 1
+Scaling kubia-v2 up to 3
+Scaling kubia-v1 down to 0
+Update succeeded. Deleting kubia-v1
+replicationcontroller "kubia-v1" rolling updated to "kubia-v2"
+
+Understanding why kubectl rolling-update is now obsolete
+Well, for starters, I, for one, don’t like Kubernetes modifying objects I’ve created.
+Okay, it’s perfectly fine for the scheduler to assign a node to my pods after I create them, but Kubernetes modifying the labels of my pods and the label selectors of my ReplicationControllers is something that I don’t expect and could cause me to go around the office yelling at my colleagues, “Who’s been messing with my controllers!?!?
+=kubectl client was the one performing all these steps of the rolling update.=
+~kubectl rolling-update kubia-v1 kubia-v2 --image=luksa/kubia:v2 --v 6~
+Using the --v 6 option increases the logging level enough to let you see the requests kubectl is sending to the API server.
+You’ll see PUT requests to/api/v1/namespaces/default/replicationcontrollers/kubia-v1
+These requests are the ones scaling down your ReplicationController
+which shows that the kubectl client is the one doing the scaling, instead of it being performed by the Kubernetes master.
+=Use the verbose logging option when running other kubectl commands, to learn more about the communication between kubectl and the API server.=
+Well, in your case, the update went smoothly, but what if you lost network connectivity while kubectl was performing the update? The update process would be interrupted mid-way. Pods and ReplicationControllers would end up in an intermediate state.
+Another reason why performing an update like this isn’t as good as it could be is because it’s imperative.
+Throughout this book, I’ve stressed how Kubernetes is about you telling it the desired state of the system and having Kubernetes achieve that state on its own, by figuring out the best way to do it.
+  This is how pods are deployed and how pods are scaled up and down.
+  You never tell Kubernetes to add an additional pod or remove an excess one—you change the number of desired replicas and that’s i
+=Similarly, you will also want to change the desired image tag in your pod definitions and have Kubernetes replace the pods with new ones running the new image.=
+=This is exactly what drove the introduction of a new resource called a Deployment, which is now the preferred way of deploying applications in Kubernetes.=
+** Using Deployments for updating apps declaratively
+A Deployment is a higher-level resource meant for deploying applications and updating them declaratively, instead of doing it through a ReplicationController or a ReplicaSet, which are both considered lower-level concepts.
+
+When you create a Deployment, a ReplicaSet resource is created underneath (eventually more of them).
+
+A Deployment is backed by a ReplicaSet, which supervises the deployment’s pods.
+When using a Deployment, the actual pods are created and managed by the Deployment’s ReplicaSets, not by the Deployment directly
+[[./pictures/kubernetes/82.png]]
+
+[[* Performing an automatic rolling update with a ReplicationController]]
+As the rolling update example demonstrates, when updating the app, you need to introduce an additional ReplicationController and coordinate the two controllers to dance around each other without stepping on each other’s toes.
+A Deployment resource takes care of that (it’s not the Deployment resource itself, but the controller process running in the Kubernetes control plane that does that;
+Using a Deployment instead of the lower-level constructs makes updating an app much easier, because you’re defining the desired state through the single Deployment resource and letting Kubernetes take care of the rest
+
+Creating a Deployment
+A Deployment is also composed of a label selector, a desired replica count, and a pod template.
+=In addition to that, it also contains a field, which specifies a deployment strategy that defines how an update should be performed when the Deployment resource is modified.=
+
+Creating a Deployment manifest
+A Deployment definition: kubia-deployment-v1.yaml
+#+begin_src yaml
+  apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: kubia
+  spec:
+    replicas: 3
+    template:
+      metadata:
+        name: kubia
+        labels:
+          app: kubia
+      spec:
+        containers:
+        - image: luska/kubia:v1
+          nmae: nodejs
+#+end_src
+
+You’ll find an older version of the Deployment resource in extensions/ v1beta1, and a newer one in apps/v1beta2 with different required fields and different defaults.
+=There’s no need to include the version in the name of the Deployment.=
+A Deployment, on the other hand, is above that version stuff.
+=At a given point in time, the Deployment can have multiple pod versions running under its wing, so its name shouldn’t reference the app version.=
+
+Creating the Deployment resource
+~kubectl delete rc --all~
+~kubectl create -f kubia-deployment-v1.yaml --record~
+=This records the command in the revision history, which will be useful later.=
+
+Displaying the status of the deployment rollout
+~kubectl get deployment~
+~kubectl describe deployment~
+~kubectl rollout status deployment kubia~
+~kubectl get pods~
+The three pods created by the Deployment include an additional numeric value in the middle of their names. What is that exactly?
+The number corresponds to the hashed value of the pod template in the Deployment and the ReplicaSet managing these pods.
+
+Understanding how Deployments create ReplicaSets, which then create the pods
+As we said earlier, a Deployment doesn’t manage pods directly.
+Instead, it creates ReplicaSets and leaves the managing to them, so let’s look at the ReplicaSet created by your Deployment
+~kubectl get replicasets~
+The ReplicaSet’s name also contains the hash value of its pod template.
+=a Deployment creates multiple ReplicaSets—one for each version of the pod template.=
+=Using the hash value of the pod template like this allows the Deployment to always use the same (possibly existing) ReplicaSet for a given version of the pod template.=
+
+Accessing the pods through the service
+=With the three replicas created by this ReplicaSet now running, you can use the Service you created a while ago to access them, because you made the new pods’ labels match the Service’s label selector.=
+
+Updating a Deployment
+Previously, when you ran your app using a ReplicationController, you had to explicitly tell Kubernetes to perform the update by running ~kubectl rolling-update~
+You even had to specify the name for the new ReplicationController that should replace the old one.
+Kubernetes replaced all the original pods with new ones and deleted the original ReplicationController at the end of the process.
+
+Now compare this to how you’re about to update a Deployment
+Similar to scaling a ReplicationController or ReplicaSet up or down, all you need to do is reference a new image tag in the Deployment’s pod template and leave it to Kubernetes to transform your system so it matches the new desired state.
+
+Understanding the available deployment strategies
+How this new state should be achieved is governed by the deployment strategy configured on the Deployment itself.
+=The default strategy is to perform a rolling update (the strategy is called RollingUpdate).=
+  The RollingUpdate strategy, on the other hand, removes old pods one by one, while adding new ones at the same time, keeping the application available throughout the whole process, and ensuring there’s no drop in its capacity to handle requests.
+  The upper and lower limits for the number of pods above or below the desired replica count are configurable.
+  You should use this strategy only when your app can handle running both the old and new version at the same time.
+The alternative is the =Recreate strategy, which deletes all the old pods at once and then creates new ones, similar to modifying a ReplicationController’s pod template and then deleting all the pods=
+  Use this strategy when your application doesn’t support running multiple versions in parallel and requires the old version to be stopped completely before the new one is started.
+
+Slowing down the rolling update for demo purposes
+=setting the minReadySeconds attribute on the Deployment.=
+~kubectl patch deployment kubia -p '{"spec": {"minReadyseconds":10}}'~
+它通过 patch 操作更新 Deployment 的 minReadySeconds 字段为 10 秒。
+minReadySeconds 是 Kubernetes Deployment 的一个可选字段，位于 spec 下，用于指定新部署的 Pod 在被认为“就绪”（ready）之前必须保持可用（即通过就绪探针检查）的最短时间（单位：秒）。
+
+=The kubectl patch command is useful for modifying a single property or a limited number of properties of a resource without having to edit its definition in a text editor.=
+
+Triggering the rolling update
+~while true; do curl http://130.211.109.222; done~
+don’t forget to replace the IP with the actual external IP of your service
+
+To trigger the actual rollout, you’ll change the image used in the single pod container to luksa/kubia:v2.
+=Instead of editing the whole YAML of the Deployment object or using the patch command to change the image, you’ll use the kubectl set image command, which allows changing the image of any resource that contains a container (ReplicationControllers, ReplicaSets, Deployments, and so on).=
+~kubectl set image deployment kubia nodejs=luksa/kubia:v2~
+Updating a Deployment’s pod template to point to a new image
+[[./pictures/kubernetes/83.png]]
+
+Ways of modifying Deployments and other resources
+Modifying an existing resource in Kubernetes
+| Method            | What it does                                                                                                                                                                                                                                                                                                                                                           |
+|-------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| kubectl edit      | Opens the object’s manifest in your default editor. After making changes, saving the file, and exiting the editor, the object is updated. Example: kubectl edit deployment kubia                                                                                                                                                                                      |
+| kubectl patch     | Modifies individual properties of an object. Example: kubectl patch deployment kubia -p '{"spec": {"template": {"spec": {"containers": [{"name": "nodejs", "image": "luksa/kubia:v2"}]}}}                                                                                                                                                                              |
+| kubectl apply     | Modifies the object by applying property values from a full YAML or JSON file. If the object specified in the YAML/JSON doesn’t exist yet, it’s created. The file needs to contain the full definition of the resource (it can’t include only the fields you want to update, as is the case with kubectl patch). Example: kubectl apply -f kubia-deployment-v2.yaml |
+| kubectl replace   | Replaces the object with a new one from a YAML/JSON file. In contrast to the apply command, this command requires the object to exist; otherwise it prints an error. Example: kubectl replace -f kubia-deployment-v2.yaml                                                                                                                                              |
+| kubectl set image | Changes the container image defined in a Pod, ReplicationController’s template, Deployment, DaemonSet, Job, or ReplicaSet. Example: kubectl set image deployment kubia nodejs=luksa/kubia:v2                                                                                                                                                                          |
+
+Understanding the awesomeness of Deployments
+The controllers running as part of the Kubernetes control plane then performed the update.
+The process wasn’t performed by the kubectl client, like it was when you used kubectl rolling-update.
+Be aware that if the pod template in the Deployment references a ConfigMap (or a Secret), modifying the ConfigMap will not trigger an update.
+One way to trigger an update when you need to modify an app’s config is to create a new ConfigMap and modify the pod template so it references the new ConfigMap.
+The events that occurred below the Deployment’s surface during the update are similar to what happened during the kubectl rolling-update.
+An additional ReplicaSet was created and it was then scaled up slowly, while the previous ReplicaSet was scaled down to zero
+[[./pictures/kubernetes/84.png]]
+
+~kubectl get rs~
+Similar to ReplicationControllers, all your new pods are now managed by the new ReplicaSet.
+=Unlike before, the old ReplicaSet is still there, whereas the old Replication-Controller was deleted at the end of the rolling-update process=
+Although this difference may not be so apparent when everything goes well with a rollout, it becomes much more obvious when you hit a problem during the rollout process.
+
+Rolling back a deployment
+Creating version 3 of your app
+#+begin_src js
+  const http = require('http')
+  const os = require('os')
+
+  var requestCount = 0;
+
+  console.log("kubia server starting...");
+
+  var handler = function(request, response) {
+      console.log("Received request from" + request.connection.remoteAddress);
+
+      if(++requestCount >= 5) {
+          response.writeHead(500);
+          response.end("Some internal error has occurred! This is a pod" + os.hostname() + "\n");
+      }
+      response.writeHead(200);
+      response.end("This is a v3 running a pod" + os.hostname() + "\n");
+  }
+
+  var www = http.createServer(handler);
+  www.listen(8080);
+#+end_src
+
+Deploying version 3
+~kubectl set image deployment kubia nodejs=luska/kubia:v3~
+~kubectl rollout status deployment status~
+~while true;do curl http://130.211.109.222; done~
+
+Undoing a rollout
+~kubectl rollout undo deployment kubia~
+=The undo command can also be used while the rollout process is still in progress to essentially abort the rollout.=
+Pods already created during the rollout process are removed and replaced with the old ones again.
+
+Displaying a Deployment’s rollout history
+~kubectl rollout history deployment kubia~
+As you’ll see later, the history is stored in the underlying ReplicaSets.
+=When a rollout completes, the old ReplicaSet isn’t deleted, and this enables rolling back to any revision, not only the previous one.=
+=Remember the --record command-line option you used when creating the Deployment?=
+Without it, the =CHANGE-CAUSE column= in the revision history would be empty, making it much harder to figure out what’s behind each revision.
+
+Rolling back to a specific Deployment revision
+~kubectl rollout undo deployment kubia --to-revision=1~
+
+Remember the inactive ReplicaSet left over when you modified the Deployment the first time?
+The ReplicaSet represents the first revision of your Deployment.
+All Replica-Sets created by a Deployment represent the complete revision history
+Each ReplicaSet stores the complete information of the Deployment at that specific revision, so you shouldn’t delete it manually.
+If you do, you’ll lose that specific revision from the Deployment’s history, preventing you from rolling back to it.
+
+A Deployment’s ReplicaSets also act as its revision history.
+[[./pictures/kubernetes/85.png]]
+=But having old ReplicaSets cluttering your ReplicaSet list is not ideal, so the length of the revision history is limited by the revisionHistoryLimit property on the Deployment resource.=
+It defaults to two, so normally only the current and the previous revision are shown in the history (and only the current and the previous ReplicaSet are preserved).
+The extensions/v1beta1 version of Deployments doesn’t have a default revisionHistoryLimit, whereas the default in version apps/v1beta2 is 10.
+
+Controlling the rate of the rollout
+Introducing the maxSurge and maxUnavailable properties of the rollling update strategy
+=Two properties affect how many pods are replaced at once during a Deployment’s rolling updat=
+Specifying parameters for the rollingUpdate strategy
+#+begin_src yaml
+  spec:
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
+      type: RollingUpdate
+#+end_src
+
+| Property       | What is does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|----------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| maxSurage      | Determines how many pod instances you allow to exist above the desired replica count configured on the Deployment. It defaults to 25%, so there can be at most 25% more pod instances than the desired count. If the desired replica count is set to four, there will never be more than five pod instances running at the same time during an update. When converting a percentage to an absolute number, the number is rounded up. Instead of a percentage, the value can also be an absolute value (for example, one or two additional pods can be allowed).                                                                 |
+| maxUnavailable | Determines how many pod instances can be unavailable relative to the desired replica count during the update. It also defaults to 25%, so the number of available pod instances must never fall below 75% of the desired replica count. Here, when converting a percentage to an absolute number, the number is rounded down. If the desired replica count is set to four and the percentage is 25%, only one pod can be unavailable. There will always be at least three pod instances available to serve requests during the whole rollout. As with maxSurge, you can also specify an absolute value instead of a percentage. |
+
+Rolling update of a Deployment with three replicas and default maxSurge and maxUnavailable
+[[./pictures/kubernetes/86.png]]
+
+The extensions/v1beta1 version of Deployments uses different defaults—it sets both maxSurge and maxUnavailable to 1 instead of 25%
+
+Rolling update of a Deployment with the maxSurge=1 and maxUnavailable=1
+[[./pictures/kubernetes/87.png]]
+
+Pausing the rollout process
+What you want is to run a single v4 pod next to your existing v2 pods and see how it behaves with only a fraction of all your users. Then, once you’re sure everything’s okay, you can replace all the old pods with new ones.
+You could achieve this by running an additional pod either directly or through an additional Deployment, ReplicationController, or ReplicaSet, but you do have another option available on the Deployment itself.
+=A Deployment can also be paused during the rollout process. This allows you to verify that everything is fine with the new version before proceeding with the rest of the rollout.=
+~kubectl set image deployment kubia nodejs=luska/kubia:v4~
+~kubectl rollout pause deployment kubia~
+A canary release is a technique for minimizing the risk of rolling out a bad version of an application and it affecting all your users.
+You can then verify whether the new version is working fine or not and then either continue the rollout across all remaining pods or roll back to the previous version.
+
+Resuming the rollout
+~kubectl rollout resume deployment kubia~
+
+Using the pause feature to prevent rollouts
+Obviously, having to pause the deployment at an exact point in the rollout process isn’t what you want to do.
+=In the future, a new upgrade strategy may do that automatically, but currently, the proper way of performing a canary release is by using two different Deployments and scaling them appropriately.=
+
+Using the pause feature to prevent rollouts
+Pausing a Deployment can also be used to prevent updates to the Deployment from kicking off the rollout process, allowing you to make multiple changes to the Deployment and starting the rollout only when you’re done making all the necessary changes.
+=If a Deployment is paused, the undo command won’t undo it until you resume the Deployment.=
+
+Blocking rollouts of bad versions
+Remember the minReadySeconds property you set on the Deployment
+You used it to slow down the rollout, so you could see it was indeed performing a rolling update and not replacing all the pods at once
+=The main function of minReadySeconds is to prevent deploying malfunctioning versions, not slowing down a deployment for fun.=
+
+Understanding the applicability of minReadySeconds
+=The minReadySeconds property specifies how long a newly created pod should be ready before the pod is treated as available.=
+=Until the pod is available, the rollout process will not continue (remember the maxUnavailable property?).=
+=A pod is ready when readiness probes of all its containers return a success.=
+If a new pod isn’t functioning properly and its readiness probe starts failing before minReadySeconds have passed, the rollout of the new version will effectively be blocked.
+
+Usually, you’d set minReadySeconds to something much higher to make sure pods keep reporting they’re ready after they’ve already started receiving actual traffic.
+Although you should obviously test your pods both in a test and in a staging environment before deploying them into production, using minReadySeconds is like an airbag that saves your app from making a big mess after you’ve already let a buggy version slip into production.
+With a properly configured readiness probe and a proper minReadySeconds setting, Kubernetes would have prevented us from deploying the buggy v3 version earlier.
+
+Defining a readiness probe to prevent our v3 version from being rolled out fully
+To change the image and introduce the readiness probe at once, you’ll use the kubectl apply command
+Deployment with a readiness probe: kubia-deployment-v3-with-readinesscheck.yaml
+#+begin_src yaml
+  apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: kubia
+  spec:
+    replicas: 3
+    minReadySeconds: 10
+    strategy:
+      rollingUpdate:
+        maxSurage: 1
+        maxUnavailable: 0
+      type: RollingUpdate
+    template:
+      metadata:
+        name: kubia
+        labels:
+          app: kubia
+      spec:
+        containers:
+        - image: luksa/kubia:v3
+          name: nodejs
+          readlinessProbe:
+            periodSeconds: 1
+            httpGet:
+              path: /
+              port: 8080
+#+end_src
+
+Updating a Deployment with kubectl apply
+~kubectl apply -f kubia-deployment-v3-with-readlinesscheck.yaml~
+=To keep the desired replica count unchanged when updating a Deployment with kubectl apply, don’t include the replicas field in the YAML.=
+~kubectl rollout status deployment kubia~
+~while true;do curl http://130.211.109.222; done~
+~kubectl get po~
+
+Understanding how a readiness probe prevents bad versions from being rolled out
+Deployment blocked by a failing readiness probe in the new pod
+[[./pictures/kubernetes/88.png]]
+
+But what about the rollout process? The rollout status command shows only one new replica has started.
+Thankfully, the rollout process will not continue, because the new pod will never become available.
+To be considered available, it needs to be ready for at least 10 seconds.
+Until it’s available, the rollout process will not create any new pods, and it also won’t remove any original pods because you’ve set the maxUnavailable property to 0.
+
+The fact that the deployment is stuck is a good thing, because if it had continued replacing the old pods with the new ones, you’d end up with a completely non-working service, like you did when you first rolled out version 3, when you weren’t using the readiness probe.
+=But now, with the readiness probe in place, there was virtually no negative impact on your users.=
+
+=If you only define the readiness probe without setting minReadySeconds properly, new pods are considered available immediately when the first invocation of the readiness probe succeeds.=
+=If the readiness probe starts failing shortly after, the bad version is rolled out across all pods.=
+
+Configuring a deadline for the rollout
+=By default, after the rollout can’t make any progress in 10 minutes, it’s considered as fail=
+=If you use the kubectl describe deployment command, you’ll see it display a ProgressDeadlineExceeded condition, as shown in the following listing.=
+Seeing the conditions of a Deployment with kubectl describe
+~kubectl describe deploy kubia~
+
+The time after which the Deployment is considered failed is configurable through the progressDeadlineSeconds property in the Deployment spec.
+The extensions/v1beta1 version of Deployments doesn’t set a deadline
+
+Aborting a bad rollout
+~kubectl rollout undo deployment kubia~
+In future versions, the rollout will be aborted automatically when the time specified in progressDeadlineSeconds is exceeded.
+* “Chapter 10. StatefulSets: deploying replicated stateful applications”
+** Replicating stateful pods
+ReplicaSets create multiple pod replicas from a single pod template. These replicas don’t differ from each other, apart from their name and IP address.
+
+=If the pod template includes a volume, which refers to a specific PersistentVolumeClaim, all replicas of the ReplicaSet will use the exact same PersistentVolumeClaim and therefore the same PersistentVolume bound by the claim=
+All pods from the same ReplicaSet always use the same PersistentVolumeClaim and PersistentVolume.
+[[./pictures/kubernetes/89.png]]
+
+=Because the reference to the claim is in the pod template, which is used to stamp out multiple pod replicas, you can’t make each replica use its own separate Persistent-VolumeClaim.=
+=You can’t use a ReplicaSet to run a distributed data store, where each instance needs its own separate storage—at least not by using a single ReplicaSet.=
+To be honest, none of the API objects you’ve seen so far make running such a data store possible. You need something else
+
+Running multiple replicas with separate storage for each
+How does one run multiple replicas of a pod and have each pod use its own storage volume?
+1.Creating pods manually
+  You could create pods manually and have each of them use its own PersistentVolumeClaim, but because no ReplicaSet looks after them, you’d need to manage them manually and recreate them when they disappear (as in the event of a node failure).
+  Therefore, this isn’t a viable option.
+2.Using one ReplicaSet per pod instance
+  Instead of creating pods directly, you could create multiple ReplicaSets—one for each pod with each ReplicaSet’s desired replica count set to one, and each ReplicaSet’s pod template referencing a dedicated PersistentVolumeClaim
+  Using one ReplicaSet for each pod instance
+  [[./pictures/kubernetes/90.png]]
+
+  Although this takes care of the automatic rescheduling in case of node failures or accidental pod deletions, it’s much more cumbersome compared to having a single ReplicaSe.
+  Using multiple ReplicaSets is therefore not the best solution. But could you maybe use a single ReplicaSet and have each pod instance keep its own persistent state, even though they’re all using the same storage volume?
+=3.Using multiple directories in the same volume=
+  =A trick you can use is to have all pods use the same PersistentVolume, but then have a separate file directory inside that volume for each pod=
+  Working around the shared storage problem by having the app in each pod use a different file directory
+  [[./pictures/kubernetes/91.png]]
+  Because you can’t configure pod replicas differently from a single pod template, you can’t tell each instance what directory it should use, but you can make each instance automatically select (and possibly also create) a data directory that isn’t being used by any other instance at that time.
+  =This solution does require coordination between the instances, and isn’t easy to do correctly=
+  It also makes the shared storage volume the bottleneck.
+
+Providing a stable identity for each pod
+  When a ReplicaSet replaces a pod, the new pod is a completely new pod with a new hostname and IP, although the data in its storage volume may be that of the killed pod.
+  For certain apps, starting up with the old instance’s data but with a completely new network identity may cause problems.
+  =Why do certain apps mandate a stable network identity?This requirement is fairly common in distributed stateful applications.=
+  Certain apps require the administrator to list all the other cluster members and their IP addresses (or hostnames) in each member’s configuration file.
+  But in Kubernetes, every time a pod is rescheduled, the new pod gets both a new hostname and a new IP address, so the whole application cluster would have to be reconfigured every time one of its members is rescheduled.
+
+=Using a dedicated service for each pod instance=
+  =A trick you can use to work around this problem is to provide a stable network address for cluster members by creating a dedicated Kubernetes Service for each individual member.=
+  Because service IPs are stable, you can then point to each member through its service IP (rather than the pod IP) in the configuration.
+  This is similar to creating a ReplicaSet for each member to provide them with individual storage, as described previously.
+  Using one Service and ReplicaSet per pod to provide a stable network address and an individual volume for each pod, respectively
+  [[./pictures/kubernetes/92.png]]
+  The solution is not only ugly, but it still doesn’t solve everything
+  =The individual pods can’t know which Service they are exposed through (and thus can’know their stable IP), so they can’t self-register in other pods using the IP=
+  Luckily, Kubernetes saves us from resorting to such complex solutions. The proper clean and simple way of running these special types of applications in Kubernetes is through a =StatefulSet=.
+** Understanding StatefulSets
+=which is specifically tailored to applications where instances of the application must be treated as non-fungible individuals, with each one having a stable name and state.=
+
+Comparing StatefulSets with ReplicaSets
+Understanding stateful pods with the pets vs. cattle analogy
+We tend to treat our app instances as pets, where we give each instance a name and take care of each instance individually. But it’s usually better to treat instances as cattle and not pay special attention to each individual instance.
+But it’s usually better to treat instances as cattle and not pay special attention to each individual instance.
+
+On the other hand, with stateful apps, an app instance is more like a pet.
+To replace a lost pet, you need to find a new one that looks and behaves exactly like the old one.
+
+Comparing StatefulSets with ReplicaSets or ReplicationControllers
+Pod replicas managed by a ReplicaSet or ReplicationController are much like cattle.
+Stateful pods require a different approach.
+When a stateful pod instance dies (or the node it’s running on fails), the pod instance needs to be resurrected on another node, but the new instance needs to get the same name, network identity, and state as the one it’s replacing
+This is what happens when the pods are managed through a StatefulSet.
+
+=A StatefulSet makes sure pods are rescheduled in such a way that they retain their identity and state.=
+=It also allows you to easily scale the number of pets up and down.=
+=Similar to ReplicaSets, pods are created from a pod template specified as part of the StatefulSet (remember the cookie-cutter analogy?).=
+=pods created by the StatefulSet aren’t exact replicas of each other. Each can have its own set of volumes—in other words, storage (and thus persistent state)—which differentiates it from its peers.=
+** Providing a stable network identity
+=Each pod created by a StatefulSet is assigned an ordinal index (zero-based)=, which is then used to derive the pod’s name and hostname, and to attach satble storage to the pod.
+=The names of the pods are thus predictable, because each pod’s name is derived from the StatefulSet’s name and the ordinal index of the instance.=
+
+Pods created by a StatefulSet have predictable names (and hostnames), unlike those created by a ReplicaSet
+[[./pictures/kubernetes/93.png]]
+** Introducing the governing Service
+Unlike regular pods, stateful pods sometimes need to be addressable by their hostname, whereas stateless pods usually don’t.
+
+=But with stateful pods, you usually want to operate on a specific pod from the group, because they differ from each other (they hold different state, for example).=
+
+=For this reason, a StatefulSet requires you to create a corresponding governing headless Service that’s used to provide the actual network identity to each pod.=
+=Through this Service, each pod gets its own DNS entry, so its peers and possibly other clients in the cluster can address the pod by its hostname.=
+=For example, if the governing Service belongs to the default namespace and is called foo, and one of the pods is called A-0, you can reach the pod through its fully qualified domain name, which is a-0.foo.default.svc.cluster.local.=
+You can’t do that with pods managed by a ReplicaSet.
+
+=Additionally, you can also use DNS to look up all the StatefulSet’s pods’ names by looking up SRV records for the foo.default.svc.cluster.local domain.=
+
+Replacing lost pets
+But in contrast to ReplicaSets, the replacement pod gets the same name and hostname as the pod that has disappeared
+A StatefulSet replaces a lost pod with a new one with the same identity, whereas a ReplicaSet replaces it with a completely new unrelated pod.
+[[./pictures/kubernetes/94.png]]
+Even if the pod is scheduled to a different node, it will still be available and reachable under the same hostname as before.
+
+Scaling a StatefulSet
+=Scaling the StatefulSet creates a new pod instance with the next unused ordinal index.=
+If you scale up from two to three instances, the new instance will get index 2 (the existing instances obviously have indexes 0 and 1).
+The nice thing about scaling down a StatefulSet is the fact that you always know what pod will be removed.
+=Scaling down a StatefulSet always removes the instances with the highest ordinal index first=
+Scaling down a StatefulSet always removes the pod with the highest ordinal index first.
+[[./pictures/kubernetes/95.png]]
+=Because certain stateful applications don’t handle rapid scale-downs nicely, StatefulSets scale down only one pod instance at a time.=
+  A distributed data store, for example, may lose data if multiple nodes go down at the same time.
+  If the scale-down was sequential, the distributed data store has time to create an additional replica of the data entry somewhere else to replace the (single) lost copy.
+
+Providing stable dedicated storage to each stateful instance
+Each stateful pod instance needs to use its own storage, plus if a stateful pod is rescheduled (replaced with a new instance but with the same identity as before), the new instance must have the same storage attached to it.
+Obviously, storage for stateful pods needs to be persistent and decoupled from the pods.
+PersistentVolumes and PersistentVolumeClaims, which allow persistent storage to be attached to a pod by referencing the Persistent-VolumeClaim in the pod by name.
+=Because PersistentVolumeClaims map to PersistentVolumes one-to-one, each pod of a StatefulSet needs to reference a different PersistentVolumeClaim to have its own separate PersistentVolume.=
+Because all pod instances are stamped from the same pod template, how can they each refer to a different PersistentVolumeClaim?
+And who creates these claims?
+Surely you’re not expected to create as many PersistentVolumeClaims as the number of pods you plan to have in the StatefulSet upfront? Of course not.
+
+Teaming up pod templates with volume claim templates
+a StatefulSet can also have one or more volume claim templates, which enable it to stamp out PersistentVolumeClaims along with each pod instance
+=A StatefulSet creates both pods and PersistentVolumeClaims.=
+[[./pictures/kubernetes/96.png]]
+
+Understanding the creation and deletion of PersistentVolumeClaims
+Scaling up a StatefulSet by one creates two or more API objects (the pod and one or more PersistentVolumeClaims referenced by the pod)
+Scaling down, however, deletes only the pod, leaving the claims alone.
+  =The reason for this is obvious, if you consider what happens when a claim is deleted. After a claim is deleted, the PersistentVolume it was bound to gets recycled or deleted and its contents are lost.=
+
+Reattaching the PersistentVolumeClaim to the new instance of the same pod
+=The fact that the PersistentVolumeClaim remains after a scale-down means a subsequent scale-up can reattach the same claim along with the bound PersistentVolume and its contents to the new pod instance=
+If you accidentally scale down a StatefulSet, you can undo the mistake by scaling up again and the new pod will get the same persisted state again (as well as the same name).
+StatefulSets don’t delete PersistentVolumeClaims when scaling down; then they reattach them when scaling back up.
+[[./pictures/kubernetes/97.png]]
+
+** Understanding StatefulSet guarantees
+StatefulSets also have different guarantees regarding their pods.
+
+Understanding the implications of stable identity and storage
+We’ve already seen how a stateful pod is always replaced with an identical pod(one having the same name and hostname, using the same persistent storage, and so on).
+
+=But what if Kubernetes can’t be sure about the state of the pod?=
+If it creates a replacement pod with the same identity, two instances of the app with the same identity might be running in the system.
+The two would also be bound to the same storage, so two processes with the same identity would be writing over the same files.
+Also, ReplicaSets create pods with a randomly generated identity, so there’s no way for two processes to run with the same identity.
+
+Introducing StatefulSet’s at-most-one semantics
+Kubernetes must thus take great care to ensure two stateful pod instances are never running with the same identity and are bound to the same PersistentVolumeClaim.
+A StatefulSet must guarantee at-most-one semantics for stateful pod instances.
+This means a StatefulSet must be absolutely certain that a pod is no longer running before it can create a replacement pod.
+This has a big effect on how node failures are handled.
+
+** Using a StatefulSet
+Creating the app and container image
+
+A simple stateful app: kubia-pet-image/app.js
+#+begin_src js
+  ...
+  const dataFile = "/var/data/kubia.txt";
+  ...
+  var handler function(request, response) {
+      if (require.method == 'POST') {
+          var file = fs.createWriteStream(dataFile);
+          file.open('open', function (fd) {
+              request.pipe(file);
+              console.log("New data has been received and stored.");
+              response.writeHead(200);
+              response.end("Data stored on pod " + os.hostname() + "\n");
+          });
+      } else {
+          var data = fileExists(dataFile)
+          ? fs.readFileSync(dataFile, 'utf8')
+          : "No data posted yet";
+          response.writeHead(200);
+          response.write("You've hit " + os.hostname() + "\n");
+          response.end("Data stroed on this pod: " + data + "\n");
+      }
+  };
+
+  var www = http.createServer(handler);
+  www.listen(8080);
+#+end_src
+
+Dockerfile for the stateful app: kubia-pet-image/Dockerfile
+#+begin_src Dockerfile
+FROM node:7
+ADD app.js /app.js
+ENTRYPOINT ["node", "app.js"] 
+#+end_src
+
+Deploying the app through a StatefulSet
+=To deploy your app, you’ll need to create two (or three) different types of objects=
+=1.PersistentVolumes for storing your data files (you’ll need to create these only if the cluster doesn’t support dynamic provisioning of PersistentVolumes).=
+  =For each pod instance, the StatefulSet will create a PersistentVolumeClaim that will bind to a PersistentVolume.=
+  If your cluster supports dynamic provisioning, you don’t need to create any PersistentVolumes manually (you can skip the next section).
+  If it doesn’t, you’ll need to create them
+=2.A governing Service required by the StatefulSet.=
+=3.The StatefulSet itself.=
+
+Creating the persistent volumes
+  You’ll need three PersistentVolumes, because you’ll be scaling the StatefulSet up to three replicas.
+  If you’re using Minikube, deploy the PersistentVolumes defined in the Chapter10/persistent-volumes-hostpath.yaml file in the book’s code archive.
+  ~gcloud compute disks create --size=1GB --zone=europe-west1-b pv-a~
+  ~gcloud compute disks create --size=1GB --zone=europe-west1-b pv-b~
+  ~gcloud compute disks create --size=1GB --zone=europe-west1-b pv-c~
+  =If you’re running the cluster elsewhere, you must modify the PersistentVolume definition and use an appropriate volume type, such as NFS (Network File System), or similar.=
+
+Make sure to create the disks in the same zone that your nodes are running in.
+
+Three PersistentVolumes: persistent-volumes-gcepd.yaml
+#+begin_src yaml
+  kind: Last
+  apiVersion: v1
+  items:
+  - apiVersion: v1
+    kind: PersistenVolume
+    metadata:
+      name: pv-a
+    spec:
+      capacity:
+        storage: 1Mi
+      accessModes:
+        - ReadWriteOnce
+      persostentVolumeReclaimPolicy: Recycle
+      gcePersistentDisk:
+        pdName: pv-a
+        fsType: nfs4
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: pv-b
+  ...
+#+end_src
+
+In the previous chapter you specified multiple resources in the same YAML by delimiting them with a =three-dash line.=
+Here you’re using a different approach by defining a =List object= and listing the resources as items of the object. Both methods are equivalent.
+
+Creating the governing Service
+Headless service to be used in the StatefulSet: kubia-service-headless.yaml
+#+begin_src yaml
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: kubia
+  spec:
+    clusterIP: None
+    selector:
+      app: kubia
+    ports:
+    - name: http
+      port: 80
+#+end_src
+
+The StatefulSet’s =governing Service must be headless.=
+=You’re setting the clusterIP field to None, which makes this a headless Service.=
+=It will enable peer discovery between your pods=
+
+Creating the StatefulSet manifest
+#+begin_src yaml
+  apiVersion: apps/v1beta1
+  kind: StatefulSet
+  metadata:
+    name: kubia
+  spec:
+    serviceName: kubia
+    replicas: 2
+    template:
+      metadata:
+        labels: kubia
+      spec:
+        containers:
+        - name: kubia
+          image: luska/kubia-pet
+          ports:
+          - name: http
+            containerPort: 8080
+          volumeMounts:
+          - name: data
+            mountPath: /var/data
+    volumeClaimTemplatesa:
+    - metadata:
+        name: data
+      spec:
+        resources:
+          request:
+            stroage: 1Mi
+        accessModes:
+        - ReadWriteOnce
+#+end_src
+
+What’s new is the volumeClaimTemplates list. In it, you’re defining one volume claim template called data, which will be used to create a PersistentVolumeClaim for each pod.
+“Chapter 6. Volumes: attaching disk storage to containers
+  =a pod references a claim by including a persistentVolumeClaim volume in the manifest.=
+In the previous pod template, you’ll find no such volume.
+=The StatefulSet adds it to the pod specification automatically and configures the volume to be bound to the claim the StatefulSet created for the specific pod.=
+
+Creating the StatefulSet
+~kubectl create -f kubia-statefulset.yaml~
+~kubectl get pods~
+Remember how a ReplicationController or a ReplicaSet creates all the pod instances at the same time?
+StatefulSets behave this way because certain clustered stateful apps are sensitive to race conditions if two or more cluster members come up at the same time, so it’s safer to bring each member up fully before continuing to bring up the rest.
+See, the first pod is now running, and the second one has been created and is being started.
+
+Examining the generated stateful pod
+A stateful pod created by the StatefulSet
+~kubectl get pod kubia-0 -o yaml~
+#+begin_src yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    ...
+  spec:
+    containers:
+    - image: luska/kubia-pet
+      ...
+      volumeMounts:
+      - mountPath: /var/data
+        name: data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-r2m41
+        readOnly: true
+    ...
+    volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: data-kubia-0
+    - name: default-token-r2m41
+      secret:
+        secretName: default-token-r2m41
+#+end_src
+
+The PersistentVolumeClaim template was used to create the PersistentVolumeClaim and the volume inside the pod, which refers to the created PersistentVolumeClaim.
+
+Examining the generated PersistentVolumeClaims
+~kubectl get pvc~
+=The names of the generated PersistentVolumeClaims are composed of the name defined in the volumeClaimTemplate and the name of each pod.=
+
+Playing with your pods
+You can’t communicate with your pods through the Service you created because it’s headless.
+You’ll need to connect to individual pods directly (or create a regular Service, but that wouldn’t allow you to talk to a specific pod).
+
+You’ve already seen ways to connect to a pod directly:
+1.by piggybacking on another pod and running curl inside it, by using port-forwarding, and so on.
+2.You’ll use the API server as a proxy to the pods.
+
+Communicating with pods through the API server
+=One useful feature of the API server is the ability to proxy connections directly to individual pods.=
+~<apiServerHost>:<port>/api/v1/namespaces/default/pods/kubia-0/proxy/<path>~
+
+=Because the API server is secured, sending requests to pods through the API server is cumbersome (among other things, you need to pass the authorization token in each request).=
+=use kubectl proxy to talk to the API server without having to deal with authentication and SSL certificates.=
+~kubectl proxy~
+~curl localhost:8001/api/v1/namespaces/default/pods/kubia-0/proxy/~
+  If you receive an empty response, make sure you haven’t left out that last slash character at the end of the URL (or make sure curl follows redirects by using its -L option).
+
+Connecting to a pod through both the kubectl proxy and API server proxy
+[[./pictures/kubernetes/98.png]]
+
+~curl -X POST -d "Hey there! This greeting was submitted to kubia-0.” localhost:8001/api/v1/namespaces/default/pods/kubia-0/proxy/~
+~curl localhost:8001/api/v1/namespaces/default/pods/kubia-0/proxy/~
+~curl localhost:8001/api/v1/namespaces/default/pods/kubia-1/proxy/~
+
+Deleting a stateful pod to see if the rescheduled pod is reattach- hed to the same storage
+~kubectl delete po kubia-0~
+~kubectl get pods~
+As soon as it terminates successfully, a new pod with the same name is created by the StatefulSet
+~kubectl get pods~
+
+Let me remind you again that this new pod may be scheduled to any node in the cluster, not necessarily the same node that the old pod was scheduled to.
+A stateful pod may be rescheduled to a different node, but it retains the name, hostname, and storage.
+[[./pictures/kubernetes/99.png]]
+
+Scaling a StatefulSet
+Scaling down a StatefulSet and scaling it back up after an extended time period should be no different than deleting a pod and having the StatefulSet recreate it immediately.
+=Remember that scaling down a StatefulSet only deletes the pods, but leaves the PersistentVolumeClaims untouched.=
+=The key thing to remember is that scaling down (and up) is performed gradually—similar to how individual pods are created when the StatefulSet is created initially.=
+  When scaling down by more than one instance, the pod with the highest ordinal number is deleted first.
+  Only after the pod terminates completely is the pod with the second highest ordinal number deleted.
+
+Exposing stateful pods through a regular, non-headless Service
+  clients usually connect to the pods through a Service rather than connecting directly.
+  A regular Service for accessing the stateful pods: kubia-service-public.yaml
+  #+begin_src yaml
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: kubia-public
+    spec:
+      selector:
+        app: kubia
+      ports:
+      - port: 80
+        targetPort: 8080
+  #+end_src
+
+=Because this isn’t an externally exposed Service (it’s a regular ClusterIP Service, not a NodePort or a LoadBalancer-type Service), you can only access it from inside the cluster.=
+
+Connecting to cluster-internal services through the API server
+=Instead of using a piggyback pod to access the service from inside the cluster, you can use the same proxy feature provided by the API server to access the service the way you’ve accessed individual pods.=
+ran kubectl proxy earlier and it should still be running
+~/api/v1/namespaces/<namespace>/services/<service name>/proxy/<path>~
+~curl localhost:8001/api/v1/namespaces/default/services/kubia-public/proxy/~
+
+** Discovering peers in a StatefulSet
+Each member of a StatefulSet needs to easily find all the other members.
+Sure, it could do that by talking to the API server, but one of Kubernetes’ aims is to expose features that help keep applications completely Kubernetes-agnostic.
+How can a pod discover its peers without talking to the API? Is there an existing, well-known technology you can use that makes this possible? How about the Domain Name System (DNS)?
+
+Introducing SRV records
+  =SRV records are used to point to hostnames and ports of servers providing a specific service.=
+  SRV（Service）记录是 DNS 系统中的一种特殊记录类型，用于指定提供特定服务的服务器位置信息，而不仅仅是简单的 IP 地址映射。
+  =Kubernetes creates SRV records to point to the hostnames of the pods backing a headless service.=
+
+list the SRV records for your stateful pods by running the dig DNS lookup tool inside a new temporary pod.
+~kubectl run -it srvlookup --image=tutum/dnsutils --rm --restart=Never -- dig SRV kubia.default.svc.cluster.local~
+Listing DNS SRV records of your headless Service
+
+;; ANSWER SECTION:
+k.d.s.c.l. 30 IN SRV 10 33 0 kubia-0.kubia.default.svc.cluster.local.
+k.d.s.c.l. 30 IN SRV 10 33 0 kubia-1.kubia.default.svc.cluster.local.
+
+;; ADDITIONAL SECTION:
+kubia-0.kubia.default.svc.cluster.local. 30 IN A 172.17.0.4
+kubia-1.kubia.default.svc.cluster.local. 30 IN A 172.17.0.6
+...
+
+The ANSWER SECTION shows two SRV records pointing to the two pods backing your headless service.
+Each pod also gets its own A record, as shown in ADDITIONAL SECTION.
+
+Implementing peer discovery through DNS
+Data posted by clients connecting to your data store cluster through the kubia-public Service lands on a random cluster node.
+The cluster can store multiple data entries, but clients currently have no good way to see all those entries.
+Because services forward requests to pods randomly, a client would need to perform many requests until it hit all the pods if it wanted to get the data from all the pods.
+You can improve this by having the node respond with data from all the cluster nodes.
+To do this, the node needs to find all its peers.
+
+Discovering peers in a sample app: kubia-pet-peers-image/app.js
+#+begin_src js
+    ...
+    const dns = require('dns');
+
+    const dataFile = "/var/data/kubia.txt";
+    const serviceName = "kubia.default.svc.cluster.local";
+    const port = 8080;
+    ...
+
+    var handler = function(request, response) {
+    if (request.method == 'POST') {
+        ...
+    } else {
+        response.writeHead(200);
+        if (request.url == '/data') {
+            var data = fileExists(dataFile)
+                ? fs.readFileSync(dataFile, 'utf8')
+                : "No data posted yet";
+            response.end(data);
+        } else {
+            response.write("You've hit " + os.hostname() + "\n");
+            response.write("Data stored in the cluster:\n");
+            dns.resolveSrv(serviceName, function (err, addresses) {
+                if (err) {
+                    response.end("Could not look up DNS SRV records: " + err);
+                    return;
+                }
+                var numResponses = 0;
+                if (addresses.length == 0) {
+                    response.end("No peers discovered.");
+                } else {
+                    addresses.forEach(function (item) {
+                        var requestOptions = {
+                            host: item.name,
+                            port: port,
+                            path: '/data'
+                        };
+                     httpGet(requestOptions, function (returnedData) {
+                         numResponses++;
+                         response.write("- " + item.name + ": " + returnedData);
+                         response.write("\n");
+                         if (numResponses == addresses.length) {
+                             response.end();
+                         }
+                     });
+                    });
+                }
+            });
+        }
+    }
+  };
+  ...          
+#+end_src
+
+The server that receives the request first performs a lookup of SRV records for the headless kubia service and then sends a GET request to each of the pods backing the service (even to itself, which obviously isn’t necessary, but I wanted to keep the code as simple as possible).
+The operation of your simplistic distributed data store
+[[./pictures/kubernetes/100.png]]
+
+** Updating a StatefulSet
+~kubectl edit statefulset kubia~
+
+~kubectl get pods~
+This is expected, because initially, StatefulSets were more like ReplicaSets and not like Deployments, so they don’t perform a rollout when the template is modified.
+You need to delete the replicas manually and the StatefulSet will bring them up again based on the new template:
+~kubectl delete pods xxx xxx~
+
+Starting from Kubernetes version 1.7, StatefulSets support rolling updates the same way Deployments and DaemonSets do.
+See the StatefulSet’s spec.updateStrategy field documentation using kubectl explain for more information.
+
+** Understanding how StatefulSets deal with node failures
+When a node fails abruptly, Kubernetes can’t know the state of the node or its pods. It can’t know whether the pods are no longer running, or if they still are and are possibly even still reachable, and it’s only the Kubelet that has stopped reporting the node’s state to the master.
+=Because a StatefulSet guarantees that there will never be two pods running with the same identity and storage, when a node appears to have failed, the StatefulSet cannot and should not create a replacement pod until it knows for certain that the pod is no longer running.=
+To do that, the admin needs to either delete the pod or delete the whole node (doing so then deletes all the pods scheduled to the node).
+
+Simulating a node’s disconnection from the network
+you’ll simulate the node disconnecting from the network by shutting down the node’s =eth0 network interface.=
+
+Shutting down the node’s network adapter
+~gcloud compute ssh gke-kubia-default-pool-32a2cac8-m0g1~
+~sudo ifconfig eth0 down~
+
+Checking the node’s status as seen by the Kubernetes master
+Observing a failed node’s status change to NotReady
+~kubectl get node~
+Observing the pod’s status change after its node becomes NotReady
+~kubectl get pods~
+
+Understanding what happens to pods whose status is unknown
+If the node were to come back online and report its and its pod statuses again, the pod would again be marked as Running.
+=But if the pod’s status remains unknown for more than a few minutes (this time is configurable), the pod is automatically evicted from the node.=
+=This is done by the master (the Kubernetes control plane). It evicts the pod by deleting the pod resource.=
+When the Kubelet sees that the pod has been marked for deletion, it starts terminating the pod.
+
+Use kubectl describe to display details about the kubia-0 pod
+Displaying details of the pod with the unknown status
+~kubectl describe pod kubia-0~
+The pod is shown as Terminating, with NodeLost listed as the reason for the termination. The message says the node is considered lost because it’s unresponsive.
+What’s shown here is the control plane’s view of the world. In reality, the pod’s container is still running perfectly fine. It isn’t terminating at all.
+
+Deleting the pod manually
+You know the node isn’t coming back, but you need all three pods running to handle clients properly. You need to get the kubia-0 pod rescheduled to a healthy node.
+you need to delete the node or the pod manually.
+
+Deleting the pod in the usual way
+~kubectl delete pod kubia-0~
+~kubectl get pods~
+That’s strange. You deleted the pod a moment ago and kubectl said it had deleted it. Why is the same pod still there?
+The kubia-0 pod in the listing isn’t a new pod with the same name—this is clear by looking at the AGE column. If it were new, its age would be merely a few seconds.
+
+Understanding why the pod isn’t deleted
+=The pod was marked for deletion even before you deleted it. That’s because the control plane itself already deleted it (in order to evict it from the node).=
+The pod was already marked for deletion earlier and will be removed as soon as the Kubelet on its node notifies the API server that the pod’s containers have terminated.
+
+Forcibly deleting the pod
+The only thing you can do is tell the API server to delete the pod without waiting for the Kubelet to confirm that the pod is no longer running.
+~kubectl delete pod kubia-0 --force --grace-period 0~
+~kubectl get pods~
+
+~gcloud compute instances reset <node name>~
+
+
